@@ -1,0 +1,10 @@
+# Set "Config-as-code path" to /frontend/railway.toml in the web service's Settings.
+[build]
+builder = "DOCKERFILE"
+watchPatterns = ["/frontend/**"]
+
+[deploy]
+healthcheckPath = "/login"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

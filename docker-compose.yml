@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: salon
+      POSTGRES_PASSWORD: salon
+      POSTGRES_DB: salon
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U salon"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://salon:salon@db:5432/salon
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-please-change-0123456789}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${APP_URL:-http://localhost:3000}
+      OPEN_SIGNUP: "true"
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-demo@tressa.app}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        API_URL: http://api:8000   # baked into the /api rewrite at build time
+    environment:
+      API_URL: http://api:8000     # used at runtime by the QR scan route
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
