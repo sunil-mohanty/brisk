@@ -73,6 +73,3 @@ App:     /dashboard (Today) /appointments /leads /quotes /link /customers /servi
 Public:  /{slug} link page · /a/{token} appointment · /q/{token} quote · /s/{token} visit history · /l/{code} QR page
 API:     /api/appointments  /api/team  /api/linkpage  /api/public/b/{slug}[/tap|/book]  /api/public/a/{token}[/ics]
 ```
-
-Commit to git
-

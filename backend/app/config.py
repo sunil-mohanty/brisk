@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def use_psycopg_driver(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v or "${{" in v or "://" not in v:
+            raise ValueError(
+                "DATABASE_URL is empty or not a database address. On Railway, set it on the api service with "
+                "'Add Reference' → your Postgres service → DATABASE_URL (it should look like postgresql://...)."
+            )
         # Railway, Render and Heroku hand out postgres:// or postgresql:// URLs.
         for prefix in ("postgres://", "postgresql://"):
             if v.startswith(prefix):
