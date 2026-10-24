@@ -104,6 +104,12 @@ class Business(Base):
     link_show_prices: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     link_booking: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     link_views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Off until the platform admin switches it on for this salon.
+    link_page_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # --- opening hours, used to offer free slots to clients who accept a quote ---
+    open_time: Mapped[str] = mapped_column(String(5), default="10:00", server_default="10:00")
+    close_time: Mapped[str] = mapped_column(String(5), default="22:00", server_default="22:00")
+    closed_days: Mapped[str] = mapped_column(String(20), default="", server_default="")  # "4" = Friday (Mon=0)
     # --- account management (set by the platform admin) ---
     status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")  # active | suspended
     plan: Mapped[str | None] = mapped_column(String(60))
@@ -222,6 +228,11 @@ class Quote(Base):
     reference: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[QuoteStatus] = mapped_column(_enum(QuoteStatus), default=QuoteStatus.sent, index=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # direct = written for one client (or many, as a bulk send); campaign = a client accepted a campaign offer
+    kind: Mapped[str] = mapped_column(String(20), default="direct", server_default="direct")
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id", ondelete="SET NULL"), index=True)
+    # After acceptance: None = not accepted yet, "awaiting" = accepted, waiting for a booking, "confirmed" = booked
+    booking_status: Mapped[str | None] = mapped_column(String(20))
     # First time the owner sent it (WhatsApp, copy link, PDF). Until then it is "Ready to send".
     shared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
@@ -236,6 +247,8 @@ class Quote(Base):
     )
     # Read-only link used to show "Serviced" without one query per quote.
     service_records: Mapped[list[ServiceRecord]] = relationship(viewonly=True, order_by="ServiceRecord.id")
+    campaign: Mapped[Campaign | None] = relationship(viewonly=True)
+    appointments: Mapped[list[Appointment]] = relationship(viewonly=True, order_by="Appointment.starts_at")
 
 
 class QuoteItem(Base):
@@ -375,6 +388,96 @@ class Appointment(Base):
     customer: Mapped[Customer] = relationship()
     stylist: Mapped[Stylist | None] = relationship()
     business: Mapped[Business] = relationship()
+
+
+class Campaign(Base):
+    """A public offer for social media and ads ("Bridal package, AED 1,500, until 30 Nov").
+    Anyone can open it, accept with their name and mobile, and book a time. Each acceptance
+    becomes that client's own accepted quote."""
+
+    __tablename__ = "campaigns"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(24), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(Text)
+    discount: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
+    vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("5.00"))
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    duration_min: Mapped[int] = mapped_column(Integer, default=60)
+    notes: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    business: Mapped[Business] = relationship()
+    items: Mapped[list[CampaignItem]] = relationship(
+        back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignItem.position"
+    )
+
+
+class CampaignItem(Base):
+    __tablename__ = "campaign_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    description: Mapped[str] = mapped_column(String(300))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("1"))
+    unit_price: Mapped[Decimal] = mapped_column(Money)
+
+    campaign: Mapped[Campaign] = relationship(back_populates="items")
+
+
+class InventoryItem(Base):
+    """A product the salon stocks: colour tubes, shampoo for resale, wax, gloves…"""
+
+    __tablename__ = "inventory_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str | None] = mapped_column(String(60))
+    sku: Mapped[str | None] = mapped_column(String(60))
+    unit: Mapped[str] = mapped_column(String(20), default="pcs", server_default="pcs")
+    stock: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    low_stock: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    cost_price: Mapped[Decimal | None] = mapped_column(Money)
+    sell_price: Mapped[Decimal | None] = mapped_column(Money)  # set for retail products
+    supplier: Mapped[str | None] = mapped_column(String(160))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class StockMove(Base):
+    __tablename__ = "stock_moves"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id", ondelete="CASCADE"), index=True)
+    change: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    reason: Mapped[str] = mapped_column(String(20))  # received | used | sold | adjust
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class OutboundMessage(Base):
+    """WhatsApp messages the system sent (or couldn't, and left for the owner to send)."""
+
+    __tablename__ = "outbound_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id", ondelete="CASCADE"))
+    to_phone: Mapped[str | None] = mapped_column(String(40))
+    to_name: Mapped[str | None] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(30))  # booking_confirmed
+    body: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), index=True)  # sent | failed | manual | done
+    error: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 # ---------------------------------------------------------------- admin / account management

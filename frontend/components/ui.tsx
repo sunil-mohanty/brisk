@@ -30,22 +30,27 @@ export function Pill({ status, label }: { status: string; label?: string }) {
 }
 
 /** Quote status as the owner should read it: a new quote is "Ready to send" until it's sent. */
-export function QuotePill({ q }: { q: Pick<Quote, "status" | "expired" | "shared_at" | "view_count"> }) {
+export function QuotePill({ q }: { q: Pick<Quote, "status" | "expired" | "shared_at" | "view_count"> & Partial<Pick<Quote, "booking_status">> }) {
+  if (q.status === "accepted" && q.booking_status === "confirmed") return <Pill status="accepted" label="Accepted · Booked" />;
+  if (q.status === "accepted" && q.booking_status === "awaiting") return <Pill status="soon" label="Accepted · Awaiting booking" />;
   if (q.expired) return <Pill status="expired" />;
   if (q.status === "sent" && !q.shared_at && !q.view_count) return <Pill status="ready" label="Ready to send" />;
   return <Pill status={q.status} />;
 }
 
-export function PageHead({ eyebrow, title, sub, action }: { eyebrow: React.ReactNode; title: string; sub?: string; action?: React.ReactNode }) {
+/** The header bar at the top of each page: title, a pill (date or context), and the page's actions. */
+export function PageHead({ eyebrow, title, sub, action }: { eyebrow?: React.ReactNode; title: string; sub?: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="head">
-      <div>
-        <div className="eyebrow">{eyebrow}</div>
-        <h1>{title}</h1>
+    <header className="head">
+      <div className="head-l">
+        <div className="head-t">
+          <h1>{title}</h1>
+          {eyebrow && <span className="head-pill">{eyebrow}</span>}
+        </div>
         {sub && <p>{sub}</p>}
       </div>
-      {action}
-    </div>
+      {action && <div className="head-a">{action}</div>}
+    </header>
   );
 }
 

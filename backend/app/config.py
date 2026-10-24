@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     signup_plan: str | None = "Starter"
     signup_plan_amount: float | None = None  # AED per month, shown to you in admin; leave empty to set per SME
     signups_per_ip_per_hour: int = 8
+    # Automatic WhatsApp messages (booking confirmations) through Meta's WhatsApp Cloud API.
+    # Without these, confirmations wait on the owner's Today screen as one-tap WhatsApp links.
+    whatsapp_token: str | None = None
+    whatsapp_phone_number_id: str | None = None
+    # Approved message template for business-initiated messages, with 4 body variables:
+    # {{1}} client first name, {{2}} service, {{3}} date & time, {{4}} salon name. Language code below.
+    whatsapp_template: str | None = None
+    whatsapp_template_lang: str = "en"
 
     @field_validator("database_url")
     @classmethod

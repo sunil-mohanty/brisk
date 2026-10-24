@@ -151,7 +151,7 @@ function QuoteForm() {
                   {catalog.slice(0, 8).map((c) => (
                     <button type="button" key={c.id} className="chip" onClick={() => addFromList(c)}>+ {c.name} <span className="mono">{money(c.unit_price, cur)}</span></button>
                   ))}
-                  <Link className="chip linkchip" href="/settings#menu">Edit menu</Link>
+                  <Link className="chip linkchip" href="/menu">Edit menu</Link>
                 </div>
               </div>
             )}

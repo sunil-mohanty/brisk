@@ -17,6 +17,10 @@ export interface Business {
   checklist_hidden: boolean;
   trial_ends_at: string | null;
   slug: string | null;
+  link_page_enabled: boolean;
+  open_time: string;
+  close_time: string;
+  closed_days: string;
 }
 
 export type BusinessType = "unisex" | "ladies" | "gents" | "spa" | "nails" | "home";
@@ -113,6 +117,13 @@ export interface Quote {
   created_at: string;
   service_record_id: number | null;
   share_message: string;
+  kind: "direct" | "campaign";
+  campaign_id: number | null;
+  campaign_title: string | null;
+  booking_status: "awaiting" | "confirmed" | null;
+  appointment_id: number | null;
+  appointment_at: string | null;
+  whatsapp_url: string | null;
 }
 
 export interface ServiceRecord {
@@ -149,7 +160,11 @@ export interface Dashboard {
   link_views: number;
   link_views_7d: number;
   link_taps_7d: number;
-  setup: { profile?: boolean; menu?: boolean; link?: boolean; booked?: boolean };
+  awaiting_booking: Quote[];
+  to_send: Outbound[];
+  low_stock: number;
+  whatsapp_auto: boolean;
+  setup: { profile?: boolean; menu?: boolean; link?: boolean; staff?: boolean; booked?: boolean };
 }
 
 export interface PublicBusiness {
@@ -179,7 +194,71 @@ export interface PublicQuote {
   notes: string | null;
   reference?: string | null;
   created_at: string;
+  booking_status: "awaiting" | "confirmed" | null;
+  appointment_at: string | null;
+  appointment_token: string | null;
+  stylist: string | null;
+  duration_min: number;
+  open_days: number[];
 }
+
+export interface Slots { day: string; duration_min: number; slots: string[] }
+
+export interface Campaign {
+  id: number;
+  token: string;
+  public_url: string;
+  title: string;
+  description: string | null;
+  items: QuoteItem[];
+  totals: Totals;
+  vat_rate: string;
+  valid_until: string | null;
+  expired: boolean;
+  duration_min: number;
+  notes: string | null;
+  active: boolean;
+  views: number;
+  accepted: number;
+  booked: number;
+  created_at: string;
+  share_text: string;
+}
+
+export interface PublicCampaign {
+  business: PublicBusiness;
+  title: string;
+  description: string | null;
+  items: QuoteItem[];
+  totals: Totals;
+  vat_rate: string;
+  currency: string;
+  valid_until: string | null;
+  expired: boolean;
+  active: boolean;
+  duration_min: number;
+  notes: string | null;
+  open_days: number[];
+}
+
+export interface InventoryItem {
+  id: number;
+  name: string;
+  category: string | null;
+  sku: string | null;
+  unit: string;
+  stock: string;
+  low_stock: string;
+  cost_price: string | null;
+  sell_price: string | null;
+  supplier: string | null;
+  notes: string | null;
+  updated_at: string;
+  low: boolean;
+}
+export interface StockMove { id: number; change: string; reason: string; note: string | null; created_at: string }
+
+export interface Outbound { id: number; appointment_id: number | null; to_name: string | null; to_phone: string | null; kind: string; body: string; status: string; created_at: string; whatsapp_url: string | null }
 
 export interface PublicService {
   business: PublicBusiness;
@@ -334,6 +413,8 @@ export interface AdminSmeDetail extends AdminSme {
   address: string | null;
   trn: string | null;
   admin_note: string | null;
+  link_page_enabled: boolean;
+  slug: string | null;
   steps: { key: string; label: string; done: boolean; date: string | null }[];
   active_days: string[];
   events: { kind: string; detail: string | null; at: string }[];

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 
-from .conftest import signup
+from .conftest import enable_link_page, signup
 
 UAE = timezone(timedelta(hours=4))
 
@@ -25,6 +25,8 @@ def test_signup_gets_a_link_page_address(client):
 
 def test_link_page_editing_and_public_view(client):
     h = signup(client)
+    assert client.get("/api/public/b/layla-beauty-lounge").status_code == 404  # off until the admin enables it
+    enable_link_page(client, h)
     upd = client.patch(
         "/api/linkpage",
         json={
@@ -42,6 +44,7 @@ def test_link_page_editing_and_public_view(client):
     assert client.patch("/api/linkpage", json={"link_motion": "explode"}, headers=h).status_code == 422
     # Taken by someone else
     other = signup(client, "x@x.ae", "Fade Barbers")
+    enable_link_page(client, other)
     assert client.patch("/api/linkpage", json={"slug": "layla-barsha"}, headers=other).status_code == 409
 
     client.post("/api/linkpage/links", json={"label": "Bridal lookbook", "url": "layla.ae/bridal", "highlight": True}, headers=h)
@@ -72,6 +75,7 @@ def test_link_page_editing_and_public_view(client):
 
 def test_booking_request_becomes_a_lead(client):
     h = signup(client)
+    enable_link_page(client, h)
     slug = client.get("/api/linkpage", headers=h).json()["slug"]
     day = (datetime.now(UAE) + timedelta(days=3)).date().isoformat()
     r = client.post(
@@ -172,7 +176,7 @@ def test_home_visit_and_quote_to_appointment(client):
 def test_dashboard_today_and_setup(client):
     h = signup(client)
     d = client.get("/api/dashboard", headers=h).json()
-    assert d["today"] == [] and d["setup"] == {"profile": False, "menu": False, "link": False, "booked": False}
+    assert d["today"] == [] and d["setup"] == {"profile": False, "menu": False, "staff": False, "booked": False}
     now = datetime.now(UAE)
     later_today = now.replace(hour=23, minute=0, second=0, microsecond=0) if now.hour < 23 else now
     client.post("/api/appointments", json={"new_customer": {"name": "Lina"}, "service": "Beard trim", "starts_at": later_today.isoformat(),

@@ -52,6 +52,10 @@ class BusinessOut(ORM):
     checklist_hidden: bool = False
     trial_ends_at: date | None = None
     slug: str | None = None
+    link_page_enabled: bool = False
+    open_time: str = "10:00"
+    close_time: str = "22:00"
+    closed_days: str = ""
 
 
 class BusinessUpdate(BaseModel):
@@ -65,6 +69,9 @@ class BusinessUpdate(BaseModel):
     default_vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
     business_type: str | None = Field(default=None, max_length=30)
     checklist_hidden: bool | None = None
+    open_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    close_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$|^24:00$")
+    closed_days: str | None = Field(default=None, pattern=r"^([0-6](,[0-6])*)?$")
 
 
 class ForgotPasswordIn(BaseModel):
@@ -290,6 +297,13 @@ class QuoteOut(BaseModel):
     created_at: datetime
     service_record_id: int | None = None
     share_message: str
+    kind: str = "direct"
+    campaign_id: int | None = None
+    campaign_title: str | None = None
+    booking_status: str | None = None
+    appointment_id: int | None = None
+    appointment_at: datetime | None = None
+    whatsapp_url: str | None = None
 
 
 # ---------- services ----------
@@ -387,6 +401,10 @@ class DashboardOut(BaseModel):
     link_views: int = 0
     link_views_7d: int = 0
     link_taps_7d: int = 0
+    awaiting_booking: list[QuoteOut] = []
+    to_send: list["OutboundOut"] = []
+    low_stock: int = 0
+    whatsapp_auto: bool = False
     setup: dict[str, bool] = {}
 
 
@@ -418,6 +436,23 @@ class PublicQuote(BaseModel):
     notes: str | None
     reference: str | None = None
     created_at: datetime
+    booking_status: str | None = None
+    appointment_at: datetime | None = None
+    appointment_token: str | None = None
+    stylist: str | None = None
+    duration_min: int = 60
+    open_days: list[int] = []  # weekdays the salon is open (Mon=0), for the date picker
+
+
+class AcceptIn(BaseModel):
+    day: date | None = None
+    time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+class SlotsOut(BaseModel):
+    day: date
+    duration_min: int
+    slots: list[str]
 
 
 class PublicServiceEntry(BaseModel):
@@ -705,6 +740,154 @@ class BookingRequestIn(BaseModel):
     @classmethod
     def strip(cls, v: str) -> str:
         return v.strip()
+
+
+
+
+# ---------- bulk quotes ----------
+class BulkQuoteIn(BaseModel):
+    customer_ids: list[int] = Field(min_length=1, max_length=500)
+    items: list[QuoteItemIn] = Field(min_length=1, max_length=50)
+    discount: Decimal = Field(default=Decimal("0"), ge=0)
+    vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
+    valid_days: int = Field(default=7, ge=1, le=365)
+    notes: str | None = None
+    reference: str | None = Field(default=None, max_length=200)
+
+
+# ---------- campaigns ----------
+class CampaignIn(BaseModel):
+    title: str = Field(min_length=2, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    items: list[QuoteItemIn] = Field(min_length=1, max_length=30)
+    discount: Decimal = Field(default=Decimal("0"), ge=0)
+    vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
+    valid_until: date | None = None
+    duration_min: int | None = Field(default=None, ge=15, le=600)
+    notes: str | None = None
+    active: bool = True
+
+
+class CampaignOut(BaseModel):
+    id: int
+    token: str
+    public_url: str
+    title: str
+    description: str | None
+    items: list[QuoteItemOut]
+    totals: TotalsOut
+    vat_rate: Decimal
+    valid_until: date | None
+    expired: bool
+    duration_min: int
+    notes: str | None
+    active: bool
+    views: int
+    accepted: int
+    booked: int
+    created_at: datetime
+    share_text: str
+
+
+class PublicCampaign(BaseModel):
+    business: PublicBusiness
+    title: str
+    description: str | None
+    items: list[QuoteItemOut]
+    totals: TotalsOut
+    vat_rate: Decimal
+    currency: str
+    valid_until: date | None
+    expired: bool
+    active: bool
+    duration_min: int
+    notes: str | None
+    open_days: list[int] = []
+
+
+class CampaignAcceptIn(AcceptIn):
+    name: str = Field(min_length=1, max_length=160)
+    phone: str = Field(min_length=6, max_length=40)
+
+    @field_validator("name", "phone")
+    @classmethod
+    def strip(cls, v: str) -> str:
+        return v.strip()
+
+
+class CampaignAcceptOut(BaseModel):
+    quote_token: str
+    booking_status: str
+    slot_taken: bool = False
+
+
+# ---------- inventory ----------
+class InventoryIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    category: str | None = Field(default=None, max_length=60)
+    sku: str | None = Field(default=None, max_length=60)
+    unit: str = Field(default="pcs", max_length=20)
+    stock: Decimal = Field(default=Decimal("0"))
+    low_stock: Decimal = Field(default=Decimal("0"), ge=0)
+    cost_price: Decimal | None = Field(default=None, ge=0)
+    sell_price: Decimal | None = Field(default=None, ge=0)
+    supplier: str | None = Field(default=None, max_length=160)
+    notes: str | None = None
+
+
+class InventoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    category: str | None = Field(default=None, max_length=60)
+    sku: str | None = Field(default=None, max_length=60)
+    unit: str | None = Field(default=None, max_length=20)
+    low_stock: Decimal | None = Field(default=None, ge=0)
+    cost_price: Decimal | None = Field(default=None, ge=0)
+    sell_price: Decimal | None = Field(default=None, ge=0)
+    supplier: str | None = Field(default=None, max_length=160)
+    notes: str | None = None
+
+
+class InventoryOut(ORM):
+    id: int
+    name: str
+    category: str | None
+    sku: str | None
+    unit: str
+    stock: Decimal
+    low_stock: Decimal
+    cost_price: Decimal | None
+    sell_price: Decimal | None
+    supplier: str | None
+    notes: str | None
+    updated_at: datetime
+    low: bool = False
+
+
+class StockMoveIn(BaseModel):
+    change: Decimal
+    reason: str = Field(pattern="^(received|used|sold|adjust)$")
+    note: str | None = Field(default=None, max_length=300)
+
+
+class StockMoveOut(ORM):
+    id: int
+    change: Decimal
+    reason: str
+    note: str | None
+    created_at: datetime
+
+
+# ---------- messages waiting for the owner ----------
+class OutboundOut(ORM):
+    id: int
+    appointment_id: int | None
+    to_name: str | None
+    to_phone: str | None
+    kind: str
+    body: str
+    status: str
+    created_at: datetime
+    whatsapp_url: str | None = None
 
 
 DashboardOut.model_rebuild()

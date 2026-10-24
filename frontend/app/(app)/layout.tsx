@@ -6,36 +6,40 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
 import { Tip, TipsProvider, TipsSwitch } from "@/components/Tips";
 import { SessionContext, type Session } from "@/components/session";
-import { Brand } from "@/components/Brand";
 import { Toaster } from "@/components/ui";
 import { api, auth } from "@/lib/api";
 import type { AuthResponse } from "@/lib/types";
 import { helpLink, site } from "@/lib/site";
 
 type IconName = keyof typeof Icon;
+type NavItem = [href: string, label: string, icon: IconName];
 
-const NAV: [string, string][] = [
-  ["/dashboard", "Today"],
-  ["/appointments", "Appointments"],
-  ["/leads", "Enquiries"],
-  ["/quotes", "Quotes"],
-  ["/link", "Link page"],
-  ["/customers", "Clients"],
-  ["/services", "Visits"],
-];
-const TABS: [string, string, IconName][] = [
-  ["/dashboard", "Today", "home"],
-  ["/appointments", "Diary", "calendar"],
-  ["/leads", "Enquiries", "leads"],
-  ["/link", "Link page", "link"],
-];
-const MORE: [string, string, IconName][] = [
+function groups(linkPage: boolean): [string, NavItem[]][] {
+  return [
+    ["Overview", [
+      ["/dashboard", "Today", "today"],
+      ["/appointments", "Appointments", "appointments"],
+      ["/leads", "Enquiries", "enquiries"],
+      ["/quotes", "Quotes", "quotes"],
+      ...(linkPage ? ([["/link", "Link page", "link"]] as NavItem[]) : []),
+    ]],
+    ["People", [
+      ["/customers", "Clients", "customers"],
+      ["/team", "Staff", "staff"],
+    ]],
+    ["Operations", [
+      ["/services", "Visits", "visits"],
+      ["/menu", "Services", "menu"],
+      ["/inventory", "Inventory", "inventory"],
+    ]],
+  ];
+}
+
+const TABS: NavItem[] = [
+  ["/dashboard", "Today", "today"],
+  ["/appointments", "Diary", "appointments"],
+  ["/leads", "Enquiries", "enquiries"],
   ["/quotes", "Quotes", "quotes"],
-  ["/customers", "Clients", "customers"],
-  ["/services", "Visits & rebooking", "services"],
-  ["/qr", "QR codes", "qr"],
-  ["/team", "Team", "team"],
-  ["/settings", "Salon profile & menu", "settings"],
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -65,8 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .get<AuthResponse>("/me")
       .then(({ user, business }) => {
         setSession({ user, business });
-        // Load the main lists quietly so the first visit to each page is instant.
-        setTimeout(() => ["/leads", "/quotes", "/services", "/customers", "/team", "/linkpage"].forEach(api.prefetch), 300);
+        setTimeout(() => ["/leads", "/quotes", "/services", "/customers", "/team", "/catalog", "/inventory"].forEach(api.prefetch), 300);
       })
       .catch(() => router.replace("/login"));
   }, [router]);
@@ -79,44 +82,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   };
   const here = (href: string) => path.startsWith(href);
   const help = helpLink();
-  const moreActive = MORE.some(([href]) => here(href));
-  const initial = (session.business.name.trim()[0] || "S").toUpperCase();
+  const b = session.business;
+  const nav = groups(b.link_page_enabled);
+  const moreItems = nav.flatMap(([, items]) => items).filter(([href]) => !TABS.some(([t]) => t === href));
+  const moreActive = moreItems.some(([href]) => here(href)) || here("/settings") || here("/qr");
+  const initial = (b.name.trim()[0] || "S").toUpperCase();
+  const area = b.address ? b.address.split(",").slice(-2).join(",").trim() : "Dubai, UAE";
 
   return (
     <SessionContext.Provider value={{ ...session, setBusiness: (business) => setSession({ ...session, business }) }}>
       <TipsProvider initialSeen={session.user.seen_tips ?? []}>
       <div className="app">
-        <header className="topbar">
-          <div className="topbar-in">
-            <Brand href="/dashboard" />
-            <nav className="nav" aria-label="Main">
-              {NAV.map(([href, label]) => (
-                <Link key={href} href={href} aria-current={here(href) ? "page" : undefined}>{label}</Link>
-              ))}
-            </nav>
-            <div className="who" ref={menuRef}>
-              <button type="button" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu(!menu)}>
-                <span className="who-name">{session.business.name}</span>
-                <span className="who-av" aria-hidden="true">{initial}</span>
-              </button>
-              {menu && (
-                <div className="who-menu" role="menu">
-                  <div className="who-head"><b>{session.business.name}</b><span>{session.user.name} · {session.user.email}</span></div>
-                  <Link role="menuitem" href="/settings">{Icon.settings()}Salon profile & menu</Link>
-                  <Link role="menuitem" href="/team">{Icon.team()}Team</Link>
-                  <Link role="menuitem" href="/qr">{Icon.qr()}QR codes</Link>
-                  {session.user.is_admin && <Link role="menuitem" href="/admin">{Icon.admin()}{site.name} admin</Link>}
-                  {help && <a role="menuitem" href={help} target="_blank" rel="noreferrer">{Icon.help()}Help on WhatsApp</a>}
-                  <button role="menuitem" type="button" className="out" onClick={signOut}>{Icon.signout()}Sign out</button>
-                </div>
-              )}
-            </div>
+        <aside className="side" aria-label="Main">
+          <Link href="/dashboard" className="side-brand" aria-label={`${site.name} home`}>
+            <span className="side-mark"><i className="mark" aria-hidden="true" /></span>
+            <span>{site.name}</span>
+          </Link>
+          <nav className="side-nav">
+            {nav.map(([label, items]) => (
+              <div className="side-group" key={label}>
+                <span className="side-label">{label}</span>
+                {items.map(([href, text, icon]) => (
+                  <Link key={href} href={href} aria-current={here(href) ? "page" : undefined}>{Icon[icon]()}<span>{text}</span></Link>
+                ))}
+              </div>
+            ))}
+          </nav>
+          <div className="side-foot" ref={menuRef}>
+            {menu && (
+              <div className="side-menu" role="menu">
+                <Link role="menuitem" href="/settings">{Icon.settings()}Salon profile & hours</Link>
+                <Link role="menuitem" href="/qr">{Icon.qr()}QR codes</Link>
+                {session.user.is_admin && <Link role="menuitem" href="/admin">{Icon.admin()}{site.name} admin</Link>}
+                {help && <a role="menuitem" href={help} target="_blank" rel="noreferrer">{Icon.help()}Help on WhatsApp</a>}
+                <div className="side-tips"><TipsSwitch /></div>
+                <button role="menuitem" type="button" className="out" onClick={signOut}>{Icon.signout()}Sign out</button>
+              </div>
+            )}
+            <button type="button" className="side-salon" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu(!menu)}>
+              <span className="side-av" aria-hidden="true">{initial}</span>
+              <span className="side-salon-t"><b>{b.name}</b><span>{area}</span></span>
+            </button>
           </div>
-        </header>
-        <main className="page">
-          <div className="page-top"><TipsSwitch /></div>
-          {children}
-        </main>
+        </aside>
+        <main className="page">{children}</main>
       </div>
 
       {/* Phones: thumb-reach tab bar */}
@@ -124,17 +133,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {TABS.map(([href, label, icon]) => (
           <Link key={href} href={href} aria-current={here(href) ? "page" : undefined}>{Icon[icon]()}<span>{label}</span></Link>
         ))}
-        <Tip id="nav.more" order={90} text="Quotes, clients, visits, QR codes, your team and salon profile are in here.">
+        <Tip id="nav.more" order={90} text="Clients, staff, visits, services, inventory and your salon profile are in here.">
           <button type="button" aria-expanded={more} aria-current={moreActive ? "page" : undefined} onClick={() => setMore(true)}>{Icon.more()}<span>More</span></button>
         </Tip>
       </nav>
       {more && (
         <div className="moresheet" role="dialog" aria-modal="true" aria-label="More" onClick={() => setMore(false)}>
           <div className="moresheet-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="moresheet-who"><b>{session.business.name}</b><span>{session.user.name} · {session.user.email}</span></div>
-            {MORE.map(([href, label, icon]) => (
+            <div className="moresheet-who"><b>{b.name}</b><span>{session.user.name} · {session.user.email}</span></div>
+            {moreItems.map(([href, label, icon]) => (
               <Link key={href} href={href} aria-current={here(href) ? "page" : undefined} onClick={() => setMore(false)}>{Icon[icon]()}{label}</Link>
             ))}
+            <Link href="/settings" aria-current={here("/settings") ? "page" : undefined} onClick={() => setMore(false)}>{Icon.settings()}Salon profile & hours</Link>
+            <Link href="/qr" aria-current={here("/qr") ? "page" : undefined} onClick={() => setMore(false)}>{Icon.qr()}QR codes</Link>
             {session.user.is_admin && <Link href="/admin" className="adm" onClick={() => setMore(false)}>{Icon.admin()}{site.name} admin</Link>}
             {help && <a href={help} target="_blank" rel="noreferrer">{Icon.help()}Help on WhatsApp</a>}
             <button type="button" onClick={signOut}>{Icon.signout()}Sign out</button>

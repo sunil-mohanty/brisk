@@ -101,15 +101,27 @@ export default function SmeDetailPage() {
         <div className="stack">
           <Billing d={d} onSaved={setD} patch={patch} />
           <section className="panel">
+            <h2>Features</h2>
+            <label className="check" style={{ alignItems: "flex-start" }}>
+              <input type="checkbox" checked={d.link_page_enabled} onChange={(e) => patch({ link_page_enabled: e.target.checked }, e.target.checked ? "Link page switched on" : "Link page switched off")} />
+              <span>
+                <b>Link page</b> (link-in-bio for Instagram & TikTok)
+                <span className="hint" style={{ display: "block" }}>
+                  {d.link_page_enabled ? <>On. Live at <a href={`/${d.slug}`} target="_blank" rel="noreferrer">/{d.slug}</a> and shown in their menu.</> : "Off. Hidden from their menu, and the public page shows “not found”."}
+                </span>
+              </span>
+            </label>
+          </section>
+          <section className="panel">
             <h2>Account</h2>
             {d.status === "suspended" ? (
               <>
-                <p className="muted" style={{ marginTop: 0 }}>Paused. The owner can't sign in. Their customers' quote and service links still work.</p>
+                <p className="muted" style={{ marginTop: 0 }}>Paused. The owner can't sign in. Their clients' quote and visit links still work.</p>
                 <button className="btn primary" onClick={() => patch({ status: "active" }, "Account switched back on")}>Switch account back on</button>
               </>
             ) : (
               <>
-                <p className="muted" style={{ marginTop: 0 }}>Pausing stops the owner signing in, for example when they haven't paid. Their customers' links keep working. You can switch it back on any time.</p>
+                <p className="muted" style={{ marginTop: 0 }}>Pausing stops the owner signing in, for example when they haven't paid. Their clients' links keep working. You can switch it back on any time.</p>
                 <PauseButton onConfirm={() => patch({ status: "suspended" }, "Account paused")} />
               </>
             )}

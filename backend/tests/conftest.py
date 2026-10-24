@@ -34,3 +34,14 @@ def signup(client, email="owner@layla.ae", business="Layla Beauty Lounge"):
     )
     assert r.status_code == 201, r.text
     return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def enable_link_page(client, headers):
+    """What the platform admin's switch does."""
+    from app.db import SessionLocal
+    from app.models import Business
+
+    biz_id = client.get("/api/me", headers=headers).json()["business"]["id"]
+    with SessionLocal() as db:
+        db.get(Business, biz_id).link_page_enabled = True
+        db.commit()

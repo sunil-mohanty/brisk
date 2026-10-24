@@ -14,7 +14,11 @@ from .models import (
     Appointment,
     AppointmentStatus,
     Business,
+    Campaign,
+    CampaignItem,
     CatalogItem,
+    InventoryItem,
+    StockMove,
     Customer,
     Lead,
     LeadStatus,
@@ -72,6 +76,7 @@ def main() -> None:
         bio="Unisex salon in Al Barsha. Colour, cuts, nails and bridal. Walk-ins welcome, booking recommended.",
         instagram="laylabeauty.dxb", tiktok="laylabeauty", hours="Daily 10am – 10pm · Fri from 2pm",
         maps_url="https://maps.google.com/?q=Al+Barsha+1+Dubai", link_theme="clay", link_motion="bloom", link_views=486,
+        link_page_enabled=True, open_time="10:00", close_time="22:00", closed_days="",
     )
     db.add(biz)
     db.flush()
@@ -131,6 +136,7 @@ def main() -> None:
             business_id=biz.id, customer_id=cs[ci].id, lead_id=leads[li].id, number=biz.next_quote_number, token=new_token(10),
             discount=Decimal(disc), status=st, created_at=ago(d), decided_at=ago(decided, 15) if decided is not None else None,
             shared_at=ago(d), notes="50% deposit to confirm the date. Includes trial session.",
+            booking_status=("confirmed" if li == 0 else "awaiting") if st == QuoteStatus.accepted else None,
             items=[QuoteItem(position=n, description=a, quantity=Decimal(b), unit_price=Decimal(c)) for n, (a, b, c) in enumerate(items)],
             views=[QuoteView(viewed_at=ago(vd, vh)) for vd, vh in views],
         )
@@ -187,6 +193,27 @@ def main() -> None:
             business_id=biz.id, customer_id=cs[ci].id, token=new_token(8), service=svc, service_date=d, amount=Decimal(amt),
             technician=who, next_service_date=d + timedelta(weeks=weeks),
         ))
+
+    db.add(Campaign(
+        business_id=biz.id, token=new_token(8), title="Bridal glow package", description="Bridal hair & makeup on the day, plus a trial session the week before.",
+        discount=Decimal(300), valid_until=today + timedelta(days=30), duration_min=180, views=312,
+        notes="50% deposit confirms your date.",
+        items=[CampaignItem(position=0, description="Bridal hair & makeup", unit_price=Decimal(1800)),
+               CampaignItem(position=1, description="Bridal trial session", unit_price=Decimal(400))],
+    ))
+    for name, cat, unit, stock, low, cost, sell, sup in [
+        ("Developer 20 vol 1L", "Colour", "bottle", 6, 2, 28, None, "Gulf Beauty Supplies"),
+        ("Permanent colour 7.1", "Colour", "tube", 3, 4, 22, None, "Gulf Beauty Supplies"),
+        ("Olaplex No.3", "Retail", "bottle", 9, 3, 85, 140, "Olaplex distributor"),
+        ("Sulphate-free shampoo 300ml", "Retail", "bottle", 14, 4, 32, 65, "Gulf Beauty Supplies"),
+        ("Gel polish base coat", "Nails", "bottle", 2, 2, 35, None, "Nail Pro Trading"),
+        ("Nitrile gloves (box 100)", "Consumables", "box", 5, 2, 18, None, "Medline UAE"),
+    ]:
+        item = InventoryItem(business_id=biz.id, name=name, category=cat, unit=unit, stock=Decimal(stock), low_stock=Decimal(low),
+                             cost_price=Decimal(cost), sell_price=Decimal(sell) if sell else None, supplier=sup)
+        db.add(item)
+        db.flush()
+        db.add(StockMove(business_id=biz.id, item_id=item.id, change=Decimal(stock), reason="received", note="Opening stock"))
 
     # A week of link page activity
     for d in range(7):

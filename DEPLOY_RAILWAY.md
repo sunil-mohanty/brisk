@@ -89,6 +89,38 @@ Railway needs a CNAME at the bare domain, so put the domain's DNS on Cloudflare 
    and the `_railway-verify` TXT record it shows into Cloudflare.
 3. Add `www` the same way if you want it. Anyone opening `www.` or `app.` is redirected to the main address.
 
+## Updating an existing deployment
+
+Push the new code. The `api` service runs database migrations on start, so the log shows
+`Running upgrade 0001_initial -> 0002_booking`. That adds campaigns, inventory, opening hours, booking status
+and the link-page switch. Existing data is kept, and quotes already accepted are marked
+"booked" (if they have an appointment) or "awaiting booking".
+
+After this update the **link page is off for every salon** until you switch it on in **Admin → the salon → Features**.
+
+## Automatic WhatsApp confirmations (optional)
+
+When a client accepts a quote or campaign and books a free time, a confirmation is sent to them on WhatsApp.
+
+- **Without setup:** the message waits on the salon's **Today** screen under "Confirmations to send".
+  The owner taps **Send** and WhatsApp opens with the message ready, from their own number.
+- **Fully automatic:** connect Meta's WhatsApp Cloud API (WhatsApp Business Platform). Messages then go out
+  instantly from one business number that you own:
+  1. developers.facebook.com → create an app → add **WhatsApp**. Add and verify your business phone number.
+  2. Create a **permanent access token** (System User in Meta Business Settings, with `whatsapp_business_messaging`).
+  3. In WhatsApp Manager, create a **message template** (category *Utility*), e.g. name `booking_confirmed`, language English, body:
+     `Hi {{1}}, your {{2}} is confirmed for {{3}} at {{4}}. Reply here if you need to change it.`
+     Wait for Meta to approve it (usually minutes to a day). A template is required because the client hasn't messaged you first.
+  4. On the `api` service add:
+     ```
+     WHATSAPP_TOKEN=<permanent token>
+     WHATSAPP_PHONE_NUMBER_ID=<phone number ID from the WhatsApp > API Setup page>
+     WHATSAPP_TEMPLATE=booking_confirmed
+     WHATSAPP_TEMPLATE_LANG=en
+     ```
+  Meta charges per business-initiated conversation (check Meta's current UAE pricing). If a send fails, the message
+  falls back to the owner's "Confirmations to send" list, so nothing is lost.
+
 ## Renaming the brand
 
 The name lives in two variables: `NEXT_PUBLIC_BRAND_NAME` on `web` (website, app, link-page footer) and `BRAND_NAME`

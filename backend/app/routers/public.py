@@ -1,7 +1,7 @@
 """Customer-facing endpoints. No login: the random token or QR code in the URL is the key."""
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
@@ -11,9 +11,13 @@ from ..activity import record
 from .. import schemas as s
 from ..config import get_settings
 from ..db import get_db
+from .. import booking
 from ..activity import UAE
 from ..logic import find_customer_by_phone, initials, item_out, public_business, social_url, totals_out
 from ..models import (
+    Campaign,
+    QuoteItem,
+    LeadStatus,
     Appointment,
     AppointmentStatus,
     Business,
@@ -34,7 +38,9 @@ from ..models import (
 )
 from ..pdf import quote_pdf
 from ..utils import is_expired, normalize_phone, quote_label, valid_until, whatsapp_link
+from .campaigns import campaign_expired, totals as campaign_totals
 from .quotes import apply_decision
+from ..utils import new_token
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -134,8 +140,21 @@ def _quote(db: Session, token: str) -> Quote:
     return q
 
 
-def _public_quote(q: Quote) -> s.PublicQuote:
+def _open_days(b: Business) -> list[int]:
+    shut = booking.closed_days(b)
+    return [d for d in range(7) if d not in shut]
+
+
+def _public_quote(q: Quote, db: Session | None = None) -> s.PublicQuote:
+    live = [a for a in q.appointments if a.status not in (AppointmentStatus.cancelled, AppointmentStatus.no_show)]
+    appt = live[0] if live else None
     return s.PublicQuote(
+        booking_status="confirmed" if appt and q.status == QuoteStatus.accepted else q.booking_status,
+        appointment_at=appt.starts_at if appt else None,
+        appointment_token=appt.token if appt else None,
+        stylist=appt.stylist.name if appt and appt.stylist else None,
+        duration_min=booking.quote_duration(db, q) if db is not None else 60,
+        open_days=_open_days(q.business),
         label=quote_label(q.number),
         business=public_business(q.business),
         customer_name=q.customer.name,
@@ -168,28 +187,56 @@ def view_quote(token: str, req: Request, preview: bool = Query(default=False), d
             q.shared_at = q.shared_at or datetime.now(timezone.utc)  # the customer has it
             db.commit()
             db.refresh(q)
-    return _public_quote(q)
+    return _public_quote(q, db)
 
 
 def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-def _decide(db: Session, token: str, accepted: bool) -> s.PublicQuote:
+def _decide(db: Session, token: str, accepted: bool, when: s.AcceptIn | None = None) -> s.PublicQuote:
     q = _quote(db, token)
     if q.status in (QuoteStatus.accepted, QuoteStatus.rejected):
         raise HTTPException(409, f"This quotation was already {q.status.value}")
     if accepted and is_expired(q.created_at, q.valid_days):
         raise HTTPException(409, "This quotation has expired. Ask the business for an updated one.")
     apply_decision(db, q, accepted)
+    if accepted and when and when.day and when.time:
+        db.flush()
+        booking.try_book(db, q, when.day, when.time)  # slot gone -> stays "awaiting"
     db.commit()
     db.refresh(q)
-    return _public_quote(q)
+    return _public_quote(q, db)
 
 
 @router.post("/q/{token}/accept", response_model=s.PublicQuote)
-def accept_quote(token: str, db: Session = Depends(get_db)):
-    return _decide(db, token, True)
+def accept_quote(token: str, body: s.AcceptIn | None = None, db: Session = Depends(get_db)):
+    """Accept, and optionally book a time in the same step."""
+    return _decide(db, token, True, body)
+
+
+@router.get("/q/{token}/slots", response_model=s.SlotsOut)
+def quote_slots(token: str, day: date = Query(), db: Session = Depends(get_db)):
+    q = _quote(db, token)
+    minutes = booking.quote_duration(db, q)
+    return s.SlotsOut(day=day, duration_min=minutes, slots=booking.free_slots(db, q.business, day, minutes))
+
+
+@router.post("/q/{token}/book", response_model=s.PublicQuote)
+def book_quote(token: str, body: s.AcceptIn, db: Session = Depends(get_db)):
+    """Book a time after accepting (for clients who accepted first and chose a time later)."""
+    q = _quote(db, token)
+    if q.status != QuoteStatus.accepted:
+        raise HTTPException(409, "Accept the quotation first")
+    if q.booking_status == "confirmed":
+        raise HTTPException(409, "This quotation is already booked")
+    if not body.day or not body.time:
+        raise HTTPException(422, "Choose a day and a time")
+    if not booking.try_book(db, q, body.day, body.time):
+        raise HTTPException(409, "That time was just taken. Please choose another.")
+    db.commit()
+    db.refresh(q)
+    return _public_quote(q, db)
 
 
 @router.post("/q/{token}/reject", response_model=s.PublicQuote)
@@ -236,7 +283,7 @@ def service_card(token: str, db: Session = Depends(get_db)):
 # ---------- Link page (link-in-bio for Instagram, TikTok, Snapchat…) ----------
 def _page_business(db: Session, slug: str) -> Business:
     b = db.scalar(select(Business).where(Business.slug == slug.lower()))
-    if not b or b.status == "suspended":
+    if not b or b.status == "suspended" or not b.link_page_enabled:
         raise HTTPException(404, "This page doesn't exist")
     return b
 
@@ -422,3 +469,76 @@ def appointment_ics(token: str, db: Session = Depends(get_db)):
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="appointment.ics"'},
     )
+
+
+# ---------- Campaign offers (social media, YouTube, ads) ----------
+def _campaign(db: Session, token: str) -> Campaign:
+    c = db.scalar(select(Campaign).where(Campaign.token == token.upper()))
+    if not c or c.business.status == "suspended":
+        raise HTTPException(404, "This offer link is not valid")
+    return c
+
+
+def _public_campaign(c: Campaign) -> s.PublicCampaign:
+    return s.PublicCampaign(
+        business=public_business(c.business), title=c.title, description=c.description,
+        items=[item_out(i) for i in c.items], totals=campaign_totals(c), vat_rate=c.vat_rate, currency=c.business.currency,
+        valid_until=c.valid_until, expired=campaign_expired(c), active=c.active, duration_min=c.duration_min,
+        notes=c.notes, open_days=_open_days(c.business),
+    )
+
+
+@router.get("/c/{token}", response_model=s.PublicCampaign)
+def view_campaign(token: str, preview: bool = Query(default=False), db: Session = Depends(get_db)):
+    c = _campaign(db, token)
+    if not preview:
+        c.views += 1
+        db.commit()
+    return _public_campaign(c)
+
+
+@router.get("/c/{token}/slots", response_model=s.SlotsOut)
+def campaign_slots(token: str, day: date = Query(), db: Session = Depends(get_db)):
+    c = _campaign(db, token)
+    return s.SlotsOut(day=day, duration_min=c.duration_min, slots=booking.free_slots(db, c.business, day, c.duration_min))
+
+
+@router.post("/c/{token}/accept", response_model=s.CampaignAcceptOut, status_code=201)
+def accept_campaign(token: str, body: s.CampaignAcceptIn, db: Session = Depends(get_db)):
+    """A client accepts the offer: they get their own accepted quote, booked if they chose a free time."""
+    c = _campaign(db, token)
+    if not c.active or campaign_expired(c):
+        raise HTTPException(409, "This offer has ended. Message the salon for current prices.")
+    b = c.business
+    customer = find_customer_by_phone(db, b.id, body.phone)
+    if not customer:
+        customer = Customer(business_id=b.id, name=body.name, phone=body.phone)
+        db.add(customer)
+        db.flush()
+    lead = Lead(business_id=b.id, customer_id=customer.id, source=f"Campaign: {c.title}"[:80], service_interest=c.title[:300],
+                status=LeadStatus.won)
+    db.add(lead)
+    biz = db.scalar(select(Business).where(Business.id == b.id).with_for_update())
+    qt = new_token(10)
+    while db.scalar(select(Quote.id).where(Quote.token == qt)):
+        qt = new_token(10)
+    now = datetime.now(timezone.utc)
+    days_left = (c.valid_until - datetime.now(UAE).date()).days if c.valid_until else 7
+    q = Quote(
+        business_id=b.id, customer_id=customer.id, number=biz.next_quote_number, token=qt,
+        discount=c.discount, vat_rate=c.vat_rate, valid_days=max(1, days_left), notes=c.notes, reference=c.title[:200],
+        kind="campaign", campaign_id=c.id, status=QuoteStatus.accepted, decided_at=now, shared_at=now, booking_status="awaiting",
+        items=[QuoteItem(position=i.position, description=i.description, quantity=i.quantity, unit_price=i.unit_price) for i in c.items],
+    )
+    biz.next_quote_number += 1
+    db.add(q)
+    db.flush()
+    q.lead_id = lead.id
+    record(db, b.id, "campaign_accepted", c.title)
+    slot_taken = False
+    if body.day and body.time:
+        db.flush()
+        db.refresh(q)
+        slot_taken = booking.try_book(db, q, body.day, body.time) is None
+    db.commit()
+    return s.CampaignAcceptOut(quote_token=q.token, booking_status=q.booking_status or "awaiting", slot_taken=slot_taken)

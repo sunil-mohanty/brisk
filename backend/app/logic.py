@@ -95,6 +95,9 @@ def quote_out(db: Session, q: Quote) -> s.QuoteOut:
     first = q.customer.name.split()[0] if q.customer.name else ""
     svc_id = q.service_records[0].id if q.service_records else None
     url = quote_url(q)
+    live = [a for a in q.appointments if a.status.value not in ("cancelled", "no_show")]
+    appt = live[0] if live else None
+    msg = f"Hi {first}, here is your quotation {quote_label(q.number)} from {q.business.name}: {url}"
     return s.QuoteOut(
         id=q.id,
         number=q.number,
@@ -118,7 +121,14 @@ def quote_out(db: Session, q: Quote) -> s.QuoteOut:
         shared_at=q.shared_at,
         created_at=q.created_at,
         service_record_id=svc_id,
-        share_message=f"Hi {first}, here is your quotation {quote_label(q.number)} from {q.business.name}: {url}",
+        share_message=msg,
+        kind=q.kind or "direct",
+        campaign_id=q.campaign_id,
+        campaign_title=q.campaign.title if q.campaign_id and q.campaign else None,
+        booking_status="confirmed" if appt and q.status.value == "accepted" else q.booking_status or ("awaiting" if q.status.value == "accepted" else None),
+        appointment_id=appt.id if appt else None,
+        appointment_at=appt.starts_at if appt else None,
+        whatsapp_url=whatsapp_link(q.customer.phone, msg),
     )
 
 

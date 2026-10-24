@@ -9,7 +9,7 @@ import type { Business, Dashboard } from "@/lib/types";
 
 const STEPS: { key: keyof Dashboard["setup"]; title: string; why: string; href: string; cta: string }[] = [
   { key: "profile", title: "Add your salon details", why: "Your WhatsApp number and area show on every booking confirmation and quote.", href: "/settings", cta: "Add details" },
-  { key: "menu", title: "Add your service menu", why: "Prices and times for what you offer. Tap them when booking, and clients see them on your page.", href: "/settings#menu", cta: "Add services" },
+  { key: "menu", title: "Add your service menu", why: "Prices and times for what you offer. Tap them when booking, and clients see them on your page.", href: "/menu", cta: "Add services" },
   { key: "link", title: "Set up your link page", why: "One link for your Instagram and TikTok bio. Clients see your menu and request a booking.", href: "/link", cta: "Set up" },
   { key: "booked", title: "Book your first client", why: "Send the confirmation on WhatsApp in one tap. Finish the visit and we'll remind you to rebook.", href: "/appointments?new=1", cta: "Book" },
 ];

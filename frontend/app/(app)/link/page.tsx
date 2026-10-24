@@ -72,6 +72,12 @@ export default function LinkPageEditor() {
     } catch (e) { toast((e as Error).message); }
   }
 
+  if (!business.link_page_enabled) return (
+    <>
+      <PageHead title="Link page" eyebrow="Not switched on" />
+      <div className="panel empty" style={{ padding: 40 }}>The link page isn&apos;t switched on for your salon yet. Message us on WhatsApp and we&apos;ll turn it on.</div>
+    </>
+  );
   if (error && !p) return <ErrorBox error={error} />;
   if (!p) return <Loading />;
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -155,7 +161,7 @@ export default function LinkPageEditor() {
           <section className="panel">
             <h2>Also on your page</h2>
             <div className="list">
-              <div className="row"><div className="l"><b>Service menu</b><div>Prices and times, grouped by category</div></div><Link className="btn sm" href="/settings#menu">Edit menu</Link></div>
+              <div className="row"><div className="l"><b>Service menu</b><div>Prices and times, grouped by category</div></div><Link className="btn sm" href="/menu">Edit menu</Link></div>
               <div className="row"><div className="l"><b>Your team</b><div>Clients can ask for someone by name</div></div><Link className="btn sm" href="/team">Edit team</Link></div>
               <div className="row"><div className="l"><b>WhatsApp, phone and address</b><div>From your salon profile</div></div><Link className="btn sm" href="/settings">Edit profile</Link></div>
             </div>

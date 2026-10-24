@@ -8,12 +8,16 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from .. import schemas as s
 from ..db import get_db
 from ..activity import UAE
+from .. import whatsapp
 from ..logic import appointment_out, quote_out, service_out
+from .messages import message_out
 from ..models import (
     Appointment,
     AppointmentStatus,
     CatalogItem,
     Customer,
+    InventoryItem,
+    OutboundMessage,
     Lead,
     LeadStatus,
     LinkClick,
@@ -21,6 +25,7 @@ from ..models import (
     Quote,
     QuoteStatus,
     ServiceRecord,
+    Stylist,
     User,
 )
 from ..security import current_user
@@ -38,6 +43,7 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
     today = datetime.now(UAE).date()
     day_start = datetime.combine(today, time.min, tzinfo=UAE)
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    staff = db.scalar(select(func.count(Stylist.id)).where(Stylist.business_id == bid, Stylist.active.is_(True))) or 0
     leads, new_leads, services, customers, qrs, menu, upcoming, booked_ever, views_7d, taps_7d = db.execute(
         select(
             select(func.count(Lead.id)).where(Lead.business_id == bid).scalar_subquery(),
@@ -67,7 +73,8 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
         select(Quote).where(Quote.business_id == bid)
         .options(
             selectinload(Quote.items), selectinload(Quote.views), selectinload(Quote.customer),
-            selectinload(Quote.business), selectinload(Quote.service_records),
+            selectinload(Quote.business), selectinload(Quote.service_records), selectinload(Quote.appointments),
+            selectinload(Quote.campaign),
         )
         .order_by(Quote.number.desc())
     ).all()
@@ -107,11 +114,18 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
         link_views=user.business.link_views or 0,
         link_views_7d=views_7d,
         link_taps_7d=taps_7d,
+        awaiting_booking=[quote_out(db, q) for q in quotes if q.booking_status == "awaiting" and q.status == QuoteStatus.accepted][:8],
+        to_send=[message_out(m) for m in db.scalars(
+            select(OutboundMessage).where(OutboundMessage.business_id == bid, OutboundMessage.status.in_(("manual", "failed"))).order_by(OutboundMessage.id)
+        )][:10],
+        low_stock=db.scalar(select(func.count(InventoryItem.id)).where(
+            InventoryItem.business_id == bid, InventoryItem.low_stock > 0, InventoryItem.stock <= InventoryItem.low_stock)) or 0,
+        whatsapp_auto=whatsapp.automatic(),
         # Getting-started checklist on the dashboard
         setup={
             "profile": bool((user.business.whatsapp or user.business.phone) and (user.business.tagline or user.business.address)),
             "menu": menu > 0,
-            "link": bool(user.business.bio or user.business.instagram or user.business.tiktok),
+            **({"link": bool(user.business.bio or user.business.instagram or user.business.tiktok)} if user.business.link_page_enabled else {"staff": staff > 0}),
             "booked": booked_ever > 0,
         },
     )

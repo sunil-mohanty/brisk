@@ -25,7 +25,7 @@ export default function TeamPage() {
     if (!name.trim()) return;
     try {
       await api.post("/team", { name: name.trim(), role: role.trim() || null });
-      toast(`${name.trim()} added to the team`);
+      toast(`${name.trim()} added`);
       setName(""); setRole("");
       load();
     } catch (err) { setError((err as Error).message); }
@@ -35,7 +35,7 @@ export default function TeamPage() {
     catch (err) { toast((err as Error).message); }
   }
   async function remove(m: Stylist) {
-    if (!window.confirm(`Remove ${m.name} from the team? Their past appointments stay in the history.`)) return;
+    if (!window.confirm(`Remove ${m.name} from your staff? Their past appointments stay in the history.`)) return;
     await api.del(`/team/${m.id}`);
     toast(`${m.name} removed`);
     load();
@@ -43,13 +43,13 @@ export default function TeamPage() {
 
   return (
     <>
-      <PageHead eyebrow="Settings" title="Team" sub={`Each ${v.staff.toLowerCase()} gets a column in the diary, so nobody is double-booked. Clients can ask for them by name on your link page.`} />
+      <PageHead eyebrow={team ? `${team.length} active` : undefined} title="Staff" sub={`Each ${v.staff.toLowerCase()} gets a column in the diary, so nobody is double-booked. Clients can ask for them by name on your link page.`} />
       <ErrorBox error={error} />
       <form className="card" onSubmit={add} style={{ marginBottom: 16 }}>
         <div className="form" style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end" }}>
           <label>Name<input id="tm-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={v.staffPlaceholder} maxLength={120} /></label>
           <label>Role <span className="hint">(optional)</span><input id="tm-role" value={role} onChange={(e) => setRole(e.target.value)} placeholder={`Senior ${v.staff.toLowerCase()}`} maxLength={80} /></label>
-          <Tip id="tm.add" order={1} text="Add everyone who takes clients, including yourself."><button className="btn primary" disabled={!name.trim()}>Add to team</button></Tip>
+          <Tip id="tm.add" order={1} text="Add everyone who takes clients, including yourself."><button className="btn primary" disabled={!name.trim()}>Add staff member</button></Tip>
         </div>
       </form>
       {!team ? <Loading /> : team.length === 0 ? (

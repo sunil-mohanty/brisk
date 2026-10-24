@@ -52,7 +52,7 @@ function QuoteDetail() {
   return (
     <>
       <PageHead
-        eyebrow={created && !q.shared_at ? "Quote ready. Now send it to your client" : "Quotes"}
+        eyebrow={created && !q.shared_at ? "Ready to send" : q.kind === "campaign" ? `Campaign · ${q.campaign_title ?? ""}` : undefined}
         title={`${q.label} · ${q.customer.name}`}
         sub={`${money(q.totals.total, cur)} · valid until ${fmtDate(q.valid_until)}${q.reference ? ` · ${q.reference}` : ""}`}
         action={<QuotePill q={q} />}
@@ -105,8 +105,14 @@ function QuoteDetail() {
             {q.status === "accepted" ? (
               q.service_record_id ? (
                 <p className="muted" style={{ margin: 0 }}>Done. The visit is in the client's history. <Link href="/services">See visits</Link></p>
+              ) : q.booking_status === "confirmed" && q.appointment_at ? (
+                <div className="acts" style={{ justifyContent: "flex-start" }}>
+                  <p className="muted" style={{ margin: 0, flexBasis: "100%" }}>Booked for {fmtDateTime(q.appointment_at)}.</p>
+                  <Link className="btn" href={`/appointments?id=${q.appointment_id}`}>Open booking</Link>
+                </div>
               ) : (
                 <div className="acts" style={{ justifyContent: "flex-start" }}>
+                  <p className="muted" style={{ margin: 0, flexBasis: "100%" }}>Accepted, waiting for a booking. The client can still pick a time from their link.</p>
                   <Link className="btn primary" href={`/appointments?quote=${q.id}`}>Book the appointment</Link>
                   <Link className="btn" href={`/services/new?quote=${q.id}`}>Already done? Record the visit</Link>
                 </div>

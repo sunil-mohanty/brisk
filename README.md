@@ -1,5 +1,5 @@
-# Brisk
-#heelo
+# Tressa
+
 The booking and client app for salons, barbers, spas and nail studios in the UAE. A sister product to Xymber,
 on the same stack, with its own brand, data and deployment.
 
@@ -20,7 +20,14 @@ Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  �
   (with "Book anyway"). Send the WhatsApp confirmation and reminder from your own number, mark arrived / no-show /
   cancelled, reschedule. The client gets a confirmation page with "Add to calendar" (.ics) and "Need to change it?".
 - **Finish a visit**: records the amount, notes (colour formula, products) and sets the rebook reminder in weeks.
-- **Quotes**: for bridal, events and packages. A WhatsApp link the client accepts; accepted quotes become appointments.
+- **Quotes, two kinds:**
+  - **Client quotes** for one client, or **bulk** (the same quote to many clients, one link each), sent on WhatsApp.
+  - **Campaign quotes**: one public offer page + QR code for Instagram, TikTok, YouTube or ads (`/c/{token}`).
+  - Clients **accept on the page and can book a free time** (from opening hours, staff and the diary). Free slot →
+    *Accepted · Booking confirmed*, appointment created and a WhatsApp confirmation sent (automatic with the
+    WhatsApp Cloud API, otherwise one tap for the owner). No time chosen or slot taken → *Accepted · Awaiting booking*.
+- **Inventory**: products, stock in/used/sold/counted, reorder levels, stock value.
+- **Link page** is switched on per salon by the platform admin (Admin → salon → Features).
 - **Visits & rebooking**: every client's history link, and a "Due to rebook" list with one-tap WhatsApp invitations.
 - **Team**, **service menu** (price, minutes, category, "from" price, shown on page), **clients** with import from
   phone contacts / Excel, **QR codes** for the counter and mirror, and the platform **admin** (invites, trials, payments).
@@ -55,7 +62,7 @@ then `cd frontend && npm install && npm run dev`.
 ## Tests
 
 ```bash
-cd backend && pytest        # 36 tests: full lifecycle, appointments, clashes, link page, booking requests, tenant isolation
+cd backend && pytest        # 46 tests: full lifecycle, appointments, clashes, link page, booking requests, tenant isolation
 ```
 
 ## Brand name

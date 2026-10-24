@@ -167,6 +167,8 @@ def create_appointment(body: s.AppointmentIn, user: User = Depends(current_user)
         notes=body.notes,
     )
     db.add(a)
+    if quote:
+        quote.booking_status = "confirmed"
     # Booking is the win for a lead.
     set_lead_status(db, a.lead_id, LeadStatus.won, only_from=(LeadStatus.new, LeadStatus.contacted, LeadStatus.quoted))
     record(db, bid, "appointment_booked")

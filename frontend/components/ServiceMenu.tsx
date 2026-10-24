@@ -46,7 +46,7 @@ export function ServiceMenu() {
   }
 
   return (
-    <section className="panel" id="menu" style={{ marginTop: 16 }}>
+    <section className="panel" id="menu">
       <h2>Service menu <span className="muted small">{items?.length ?? 0} services</span></h2>
       <p className="muted small" style={{ marginTop: -6 }}>Tap these when booking or quoting. Clients see them on your link page.</p>
       {ideas.length > 0 && (

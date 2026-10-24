@@ -1,6 +1,6 @@
 // Server-side reads for link previews (WhatsApp, Instagram, etc.). Runs inside the Next server,
 // talks to the API directly, and never counts as a customer "view".
-import type { PublicAppointment, PublicLinkPage, PublicQuote, PublicService } from "./types";
+import type { PublicAppointment, PublicCampaign, PublicLinkPage, PublicQuote, PublicService } from "./types";
 
 const API = process.env.API_URL || "http://localhost:8000";
 
@@ -14,6 +14,7 @@ async function get<T>(path: string): Promise<T | null> {
 }
 
 export const fetchQuote = (token: string) => get<PublicQuote>(`/public/q/${encodeURIComponent(token)}?preview=1`);
+export const fetchCampaign = (token: string) => get<PublicCampaign>(`/public/c/${encodeURIComponent(token)}?preview=1`);
 export const fetchLinkPage = (slug: string) => get<PublicLinkPage>(`/public/b/${encodeURIComponent(slug)}?preview=1`);
 export const fetchAppointment = (token: string) => get<PublicAppointment>(`/public/a/${encodeURIComponent(token)}`);
 export const fetchService = (token: string) => get<PublicService>(`/public/s/${encodeURIComponent(token)}`);
