@@ -29,12 +29,13 @@
 }
 /* Salons: espresso sidebar, warm blush page, terracotta actions (the Glōw look). */
 [data-vertical="salon"] {
-  --bg: #f4ece7; --surface: #fbf8f5; --surface-2: #f2e7e0; --line: #ebded5; --line-2: #dccabe;
-  --fg: #2a1f1a; --muted: #87736a; --accent: #c0613f; --accent-deep: #a24e30; --accent-ink: #fffaf6; --accent-soft: #f6dccf;
-  --side: #2a201b; --side-2: #3a2d26; --side-3: #4a372d; --side-fg: #efe4dc; --side-muted: #b7a296; --side-label: #9c7f70;
-  --tone: #a07d65; --muted-2: #6d5c53; --input: #fffdf9; --gold: #b88a3e;
-  --ok: #4e6b3a; --ok-bg: #e2ead7; --info: #6a4f86; --info-bg: #ece3f2;
-  --shadow: 0 1px 0 rgba(42, 31, 26, .04), 0 10px 30px -18px rgba(85, 45, 25, .3);
+  /* Ink & copper: the Brisk sign-up look. Ink navy sidebar and text, warm stone page, copper actions. */
+  --bg: #f4f2ee; --surface: #fcfbf9; --surface-2: #ece8e2; --line: #e4dfd8; --line-2: #d3ccc2;
+  --fg: #1d2330; --muted: #6d7280; --accent: #c0613f; --accent-deep: #a24e30; --accent-ink: #fffaf6; --accent-soft: #f5e0d5;
+  --side: #1d2330; --side-2: #2a3140; --side-3: #384052; --side-fg: #eceef2; --side-muted: #a9afbb; --side-label: #8d93a0;
+  --tone: #4c5466; --muted-2: #4c5160; --input: #ffffff; --gold: #b0874a;
+  --ok: #3f6b45; --ok-bg: #dfeadf; --info: #4f5a86; --info-bg: #e5e8f3;
+  --shadow: 0 1px 0 rgba(29, 35, 48, .04), 0 10px 30px -18px rgba(29, 35, 48, .28);
 }
 /* Real estate: charcoal sidebar, cool paper page, deep navy actions, a touch of brass. */
 [data-vertical="real_estate"] {
@@ -237,7 +238,7 @@ dialog.sheet[open] { animation: sheetIn .2s ease-out; }
 }
 
 /* ---------- client-facing pages (phone-first) ---------- */
-.pubpage { --pub-bg: #f4ece7; --pub-fg: #2b1d17; --pub-muted: #76655a; --pub-card: #fbf6ef; --pub-line: #e2d2be; --pub-accent: #c0613f;
+.pubpage { --pub-bg: #f4f2ee; --pub-fg: #1d2330; --pub-muted: #6d7280; --pub-card: #fcfbf9; --pub-line: #ddd7ce; --pub-accent: #c0613f;
   background: var(--pub-bg); color: var(--pub-fg); min-height: 100vh; color-scheme: light; }
 .pubpage[data-vertical="real_estate"] { --pub-bg: #eef0f3; --pub-fg: #1b2029; --pub-muted: #616a7b; --pub-card: #fafbfc; --pub-line: #d3dae4; --pub-accent: #1f3a5f; }
 .pubpage[data-vertical="real_estate"] .logo { border-radius: 12px; padding-top: 0; }

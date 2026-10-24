@@ -99,8 +99,10 @@ RE_PALETTE = dict(  # real estate: deep navy + charcoal
     CREAM=(238, 240, 243), SURFACE=(249, 250, 251), INK=(28, 32, 39), MUTED=(102, 110, 124),
     ACCENT=(31, 58, 95), ACCENT_DEEP=(21, 41, 69), ACCENT_SOFT=(220, 227, 237), ON_ACCENT=(246, 248, 251),
 )
-SALON_PALETTE = dict(CREAM=CREAM, SURFACE=SURFACE, INK=INK, MUTED=MUTED, ACCENT=ACCENT, ACCENT_DEEP=ACCENT_DEEP,
-                     ACCENT_SOFT=ACCENT_SOFT, ON_ACCENT=ON_ACCENT)
+SALON_PALETTE = dict(  # salons: ink & copper on warm stone (the Brisk sign-up look)
+    CREAM=(244, 242, 238), SURFACE=(252, 251, 249), INK=(29, 35, 48), MUTED=(109, 114, 128),
+    ACCENT=(192, 97, 63), ACCENT_DEEP=(162, 78, 48), ACCENT_SOFT=(245, 224, 213), ON_ACCENT=(255, 250, 246),
+)
 
 
 def is_real_estate(c: Campaign) -> bool:
@@ -234,7 +236,7 @@ def render(c: Campaign, url: str, fmt: str = "portrait") -> bytes:
         sx += w + sp
 
     # Scan card
-    d.rounded_rectangle([M, cy, W - M, cy + card_h], radius=28, fill=SURFACE, outline=(208, 215, 226) if re_ else (220, 202, 190), width=2)
+    d.rounded_rectangle([M, cy, W - M, cy + card_h], radius=28, fill=SURFACE, outline=(208, 215, 226) if re_ else (221, 215, 206), width=2)
     img.paste(_qr(url, q, INK, SURFACE), (M + 24, cy + 24))
     tx = M + 24 + q + 34
     d.text((tx, cy + card_h // 2 - 30), "Scan to book a viewing" if re_ else "Scan to accept & book", font=display(50 if tall else 46 if not sq else 40), fill=INK, anchor="lm")
