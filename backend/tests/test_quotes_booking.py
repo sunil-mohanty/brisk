@@ -174,7 +174,7 @@ def test_whatsapp_sent_automatically_when_connected(client, monkeypatch):
     monkeypatch.setattr(get_settings(), "whatsapp_token", "t")
     monkeypatch.setattr(get_settings(), "whatsapp_phone_number_id", "123")
     monkeypatch.setattr(get_settings(), "whatsapp_template", "booking_confirmed")
-    monkeypatch.setattr(whatsapp, "_post", lambda payload: (sent.append(payload), (True, None))[1])
+    monkeypatch.setattr(whatsapp, "_post", lambda payload: (sent.append(payload), (True, None, "wamid.X"))[1])
     h, _ = _setup(client)
     q = _quote(client, h)
     client.post(f"/api/public/q/{q['token']}/accept", json={"day": _future_day(), "time": "12:00"})

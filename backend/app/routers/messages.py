@@ -23,7 +23,7 @@ def message_out(m: OutboundMessage) -> s.OutboundOut:
 @router.get("/pending", response_model=list[s.OutboundOut])
 def pending(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(
-        select(OutboundMessage).where(OutboundMessage.business_id == user.business_id, OutboundMessage.status.in_(("manual", "failed")))
+        select(OutboundMessage).where(OutboundMessage.business_id == user.business_id, OutboundMessage.status.in_(("manual", "failed")), OutboundMessage.kind != "bot")
         .order_by(OutboundMessage.id)
     ).all()
     return [message_out(m) for m in rows]

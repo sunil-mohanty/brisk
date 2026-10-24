@@ -1089,3 +1089,56 @@ button.slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .offer-hero .price { font: 400 36px var(--display); margin-top: 6px; }
 .offer-hero .price s { display: block; font-size: 19px; opacity: .7; }
 .panel h2 .small, .panel h2 .muted { font: 500 13px var(--body); }
+
+/* WhatsApp delivery state on a quote */
+.wa-state { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 13px; color: var(--fg); }
+.wa-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.wa-state.delivered i { background: var(--wa); }
+.wa-state.read i { background: #2f8fd0; }
+.wa-state.failed { color: var(--bad); }
+.wa-state.failed i { background: var(--bad); }
+.wa-state span { color: var(--muted); }
+.wa-tick { font-size: 11px; color: var(--wa); font-weight: 600; white-space: nowrap; }
+.wa-tick.failed { color: var(--bad); }
+.wa-banner { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 12px 14px; border-radius: var(--r-sm); background: var(--ok-bg); color: var(--ok); font-size: 13px; margin: 0 0 14px; }
+.wa-banner.off { background: var(--surface-2); color: var(--muted); }
+.wa-banner b { color: var(--fg); }
+.wa-accept { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.wa-accept span { color: var(--muted); }
+
+/* Posting a campaign to social media */
+.sp-grid { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 24px; align-items: start; }
+.sp-pic { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.sp-pic img { width: 100%; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); display: block; }
+.sp-pic img.fmt-story { width: 72%; }
+.sp-fmt button { padding: 5px 11px; font-size: 12.5px; }
+.sp-form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sp-targets { display: grid; gap: 8px; }
+.sp-target { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; }
+.sp-target.on { border-color: var(--accent); background: var(--accent-soft); }
+.sp-target.off { cursor: default; background: var(--surface-2); }
+.sp-target.warn small { color: var(--bad); }
+.sp-target input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; flex: none; }
+.sp-target > i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.sp-target > span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sp-target small { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.sp-caption { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 13.5px; }
+.sp-caption textarea { font: 14px/1.5 var(--body); padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface); color: var(--fg); resize: vertical; }
+.sp-caption .hint { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.sp-history { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 6px; }
+.sp-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+.bad-text { color: var(--bad); }
+.camp-pic { width: 100%; aspect-ratio: 5 / 4; object-fit: cover; object-position: center 30%; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+@media (max-width: 760px) {
+  .sp-grid { grid-template-columns: 1fr; }
+  .sp-pic img { max-width: 300px; }
+}
+
+/* Social accounts in Settings */
+.soc-acc { display: flex; align-items: center; gap: 12px; }
+.soc-acc img, .soc-acc .soc-ph { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; background: var(--surface-2); }
+.soc-acc .soc-ph { display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 13px; }
+.soc-group { margin-top: 14px; }
+.soc-group h3 { font-size: 14px; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.sp-targets .sp-target { flex-direction: row; align-items: center; text-align: left; font-weight: 400; font-size: 14px; margin: 0; }
+.sp-targets .sp-target b { font-weight: 600; }

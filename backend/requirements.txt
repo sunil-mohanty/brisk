@@ -13,5 +13,8 @@ segno>=1.6
 httpx>=0.27
 python-multipart>=0.0.9
 openpyxl>=3.1
+pillow>=10.4
+cryptography>=43
+imageio-ffmpeg>=0.5  # bundled ffmpeg for the campaign video
 # tests
 pytest>=8

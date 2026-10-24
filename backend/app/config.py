@@ -42,6 +42,28 @@ class Settings(BaseSettings):
     # {{1}} client first name, {{2}} service, {{3}} date & time, {{4}} salon name. Language code below.
     whatsapp_template: str | None = None
     whatsapp_template_lang: str = "en"
+    # Quote template with buttons: body {{1}} first name, {{2}} salon, {{3}} what, {{4}} total, {{5}} valid until;
+    # quick-reply buttons "Accept" and "Decline", and a URL button ending in the quote token.
+    whatsapp_quote_template: str | None = None
+    # Webhook: Meta checks VERIFY_TOKEN once when you subscribe, and signs every call with the app secret.
+    whatsapp_verify_token: str | None = None
+    whatsapp_app_secret: str | None = None
+    # The business number in international format without "+", e.g. 971501234567. Used for "Accept on WhatsApp" links.
+    whatsapp_business_number: str | None = None
+    whatsapp_graph_url: str = "https://graph.facebook.com/v21.0"
+
+    # Posting campaigns to each salon's own Facebook Page and Instagram (one Meta app for the platform).
+    meta_app_id: str | None = None
+    meta_app_secret: str | None = None
+    meta_graph_url: str = "https://graph.facebook.com/v21.0"
+    meta_dialog_url: str = "https://www.facebook.com/v21.0/dialog/oauth"
+    # Posting campaign videos to each salon's YouTube channel (one Google Cloud project for the platform).
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_auth_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    google_token_url: str = "https://oauth2.googleapis.com/token"
+    youtube_api_url: str = "https://www.googleapis.com/youtube/v3"
+    youtube_upload_url: str = "https://www.googleapis.com/upload/youtube/v3/videos"
 
     @field_validator("database_url")
     @classmethod

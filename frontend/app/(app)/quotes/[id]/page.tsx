@@ -9,6 +9,7 @@ import { api, download } from "@/lib/api";
 import { fmtDate, fmtDateTime, money, waLink } from "@/lib/format";
 import type { Quote } from "@/lib/types";
 import { Tip } from "@/components/Tips";
+import { sendQuoteWhatsApp, useWhatsApp, WA_LABEL } from "@/lib/whatsapp";
 
 export default function QuoteDetailPage() {
   return <Suspense fallback={<Loading />}><QuoteDetail /></Suspense>;
@@ -20,6 +21,8 @@ function QuoteDetail() {
   const { business } = useSession();
   const [q, setQ] = useState<Quote | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const wa = useWhatsApp();
   const load = useCallback(() => api.get<Quote>(`/quotes/${id}`).then(setQ).catch((e) => setError(e.message)), [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -35,6 +38,21 @@ function QuoteDetail() {
   // Sending it (any way) moves it from "Ready to send" to "Sent".
   function shared() {
     if (q && !q.shared_at) api.post<Quote>(`/quotes/${id}/shared`).then(setQ).catch(() => {});
+  }
+
+  async function sendAuto() {
+    setSending(true);
+    try {
+      const r = await sendQuoteWhatsApp(Number(id));
+      if (r.status === "sent") toast("Sent on WhatsApp with Accept and Decline buttons");
+      else if (r.status === "manual" && r.whatsapp_url) window.open(r.whatsapp_url, "_blank");
+      else toast(`WhatsApp couldn't send it: ${r.error ?? "unknown error"}. Send it from your phone instead.`);
+      await load();
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setSending(false);
+    }
   }
 
   if (error) return <ErrorBox error={error} />;
@@ -65,8 +83,23 @@ function QuoteDetail() {
               <input id="quote-link" readOnly value={q.public_url} onFocus={(e) => e.target.select()} />
               <button className="btn" onClick={() => { copyText(q.public_url); shared(); }}>Copy</button>
             </div>
+            {q.wa_status && (
+              <p className={`wa-state ${q.wa_status}`}>
+                <i />{WA_LABEL[q.wa_status]}
+                {q.wa_status === "failed" && q.wa_error ? <span> · {q.wa_error}</span> : q.status === "sent" || q.status === "viewed" ? <span> · waiting for the client to tap Accept</span> : null}
+              </p>
+            )}
             <div className="acts" style={{ justifyContent: "flex-start", marginTop: 10 }}>
-              <Tip id="qd.whatsapp" order={1} text="Opens WhatsApp with the message and link ready, from your own number. Just press send."><a className="btn wa" href={waLink(q.customer.phone, q.share_message)} target="_blank" rel="noreferrer" onClick={shared}>Send on WhatsApp</a></Tip>
+              {wa?.quotes && open ? (
+                <>
+                  <Tip id="qd.whatsapp" order={1} text="Sent from your WhatsApp Business number with Accept and Decline buttons. Your client accepts and picks a time inside WhatsApp.">
+                    <button className="btn wa" disabled={sending} onClick={sendAuto}>{sending ? "Sending…" : q.wa_status && q.wa_status !== "failed" ? "Send again on WhatsApp" : "Send on WhatsApp"}</button>
+                  </Tip>
+                  <a className="btn" href={waLink(q.customer.phone, q.share_message)} target="_blank" rel="noreferrer" onClick={shared}>From my phone</a>
+                </>
+              ) : (
+                <Tip id="qd.whatsapp" order={1} text="Opens WhatsApp with the message and link ready, from your own number. Just press send."><a className="btn wa" href={waLink(q.customer.phone, q.share_message)} target="_blank" rel="noreferrer" onClick={shared}>Send on WhatsApp</a></Tip>
+              )}
               <a className="btn" href={`/q/${q.token}?preview=1`} target="_blank" rel="noreferrer">Preview as client</a>
               <button className="btn" onClick={() => { download(`/quotes/${q.id}/pdf`, `${q.label}.pdf`); shared(); }}>Download PDF</button>
             </div>

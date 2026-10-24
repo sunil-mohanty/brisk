@@ -10,6 +10,7 @@ import { copyText, ErrorBox, Loading, PageHead, Pill, QuotePill } from "@/compon
 import { api } from "@/lib/api";
 import { fmtDate, fmtDateTime, fmtDay, fmtTime, money, uaeDate } from "@/lib/format";
 import type { Campaign, Quote } from "@/lib/types";
+import { WA_LABEL } from "@/lib/whatsapp";
 
 type Tab = "clients" | "campaigns";
 
@@ -79,7 +80,7 @@ function ClientQuotes() {
                   <td className="c-stat c-first c-label"><Link className="rowlink mono" href={`/quotes/${q.id}`}>{q.label}</Link><div className="sub">{q.kind === "campaign" ? `Campaign · ${q.campaign_title ?? ""}` : fmtDate(q.created_at)}</div></td>
                   <td className="c-main"><b className="c-name">{q.customer.name}</b><div className="sub">{q.items.map((i) => i.description).join(", ")}</div></td>
                   <td className="num c-end">{money(q.totals.total, business.currency)}</td>
-                  <td className="c-stat"><QuotePill q={q} />{q.status !== "accepted" && <div className="sub">{q.view_count ? `Opened ${q.view_count}× · ${fmtDateTime(q.views[q.views.length - 1])}` : "Not opened yet"}</div>}</td>
+                  <td className="c-stat"><QuotePill q={q} />{q.status !== "accepted" && <div className="sub">{q.view_count ? `Opened ${q.view_count}× · ${fmtDateTime(q.views[q.views.length - 1])}` : q.wa_status ? <span className={`wa-tick ${q.wa_status}`}>{WA_LABEL[q.wa_status]}</span> : "Not opened yet"}</div>}</td>
                   <td className="c-stat" data-label="Booking">
                     {q.appointment_at ? <Link href={`/appointments?id=${q.appointment_id}`}>{fmtDay(uaeDate(q.appointment_at))}, {fmtTime(q.appointment_at)}</Link> : q.booking_status === "awaiting" ? <span className="muted">Not booked yet</span> : "—"}
                   </td>
@@ -119,6 +120,8 @@ function Campaigns() {
     <div className="camps">
       {rows.map((c) => (
         <article className="camp" key={c.id}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="camp-pic" src={`/api/public/c/${c.token}/image/portrait.jpg?v=${c.image_version}`} alt="" loading="lazy" />
           <div className="camp-top">
             <div>
               <Link className="camp-title" href={`/quotes/campaigns/${c.id}`}>{c.title}</Link>
@@ -135,6 +138,7 @@ function Campaigns() {
           <div className="acts" style={{ justifyContent: "flex-start" }}>
             <button className="btn sm" onClick={() => copyText(c.public_url)}>Copy link</button>
             <Link className="btn sm" href={`/quotes/campaigns/${c.id}`}>Open</Link>
+            {c.active && !c.expired && <Link className="btn sm primary" href={`/quotes/campaigns/${c.id}#post`}>Post to social</Link>}
           </div>
         </article>
       ))}

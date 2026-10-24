@@ -40,8 +40,8 @@ export function CampaignForm({ campaign }: { campaign?: Campaign }) {
     };
     try {
       const c = campaign ? await api.put<Campaign>(`/campaigns/${campaign.id}`, body) : await api.post<Campaign>("/campaigns", body);
-      toast(campaign ? "Campaign saved" : "Campaign is live. Share the link or QR code.");
-      router.push(`/quotes/campaigns/${c.id}`);
+      toast(campaign ? "Campaign saved" : "Campaign is live. Post it to your social media now.");
+      router.push(campaign ? `/quotes/campaigns/${c.id}` : `/quotes/campaigns/${c.id}?created=1#post`);
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
 

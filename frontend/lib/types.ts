@@ -124,6 +124,8 @@ export interface Quote {
   appointment_id: number | null;
   appointment_at: string | null;
   whatsapp_url: string | null;
+  wa_status: "sent" | "delivered" | "read" | "failed" | null;
+  wa_error: string | null;
 }
 
 export interface ServiceRecord {
@@ -223,6 +225,9 @@ export interface Campaign {
   booked: number;
   created_at: string;
   share_text: string;
+  whatsapp_accept_url: string | null;
+  image_version: string;
+  post_caption: string;
 }
 
 export interface PublicCampaign {
@@ -239,6 +244,7 @@ export interface PublicCampaign {
   duration_min: number;
   notes: string | null;
   open_days: number[];
+  whatsapp_accept_url: string | null;
 }
 
 export interface InventoryItem {
@@ -452,3 +458,12 @@ export interface AdminInvite {
   created_at: string;
 }
 export interface MessageLink { whatsapp_url: string | null; message: string }
+
+export interface WhatsAppStatus { automatic: boolean; quotes: boolean; webhook: boolean; business_number: string | null }
+export interface WhatsAppSend { status: "sent" | "failed" | "manual"; error: string | null; whatsapp_url: string | null }
+export interface BulkSend { sent: number; failed: number; manual: number }
+
+export type SocialProvider = "facebook" | "instagram" | "youtube";
+export interface SocialAccount { id: number; provider: SocialProvider; name: string; handle: string | null; picture_url: string | null; selected: boolean; error: string | null; connected_at: string }
+export interface SocialStatus { meta_ready: boolean; google_ready: boolean; accounts: SocialAccount[] }
+export interface CampaignPost { id: number; provider: SocialProvider; account_name: string; status: "posting" | "posted" | "failed"; url: string | null; error: string | null; created_at: string; posted_at: string | null }

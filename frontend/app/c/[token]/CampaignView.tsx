@@ -78,7 +78,14 @@ export function CampaignView() {
           <small>By accepting, {c.business.name} gets your name and mobile number to confirm your booking.</small>
         </form>
       )}
-      {c.business.whatsapp_url && <div className="pbtns"><a className="btn wa" href={`${c.business.whatsapp_url}?text=${encodeURIComponent(`Hi, I have a question about "${c.title}".`)}`} target="_blank" rel="noreferrer">Questions? Chat on WhatsApp</a></div>}
+      {!ended && c.whatsapp_accept_url && (
+        <div className="pcard wa-accept">
+          <b>Prefer WhatsApp?</b>
+          <span>Accept and pick your time in a WhatsApp chat instead. Just press send on the message that opens.</span>
+          <div className="pbtns"><a className="btn wa" href={c.whatsapp_accept_url} target="_blank" rel="noreferrer">Accept on WhatsApp</a></div>
+        </div>
+      )}
+      {c.business.whatsapp_url && <div className="pbtns"><a className={c.whatsapp_accept_url && !ended ? "btn" : "btn wa"} href={`${c.business.whatsapp_url}?text=${encodeURIComponent(`Hi, I have a question about "${c.title}".`)}`} target="_blank" rel="noreferrer">Questions? Chat on WhatsApp</a></div>}
       <Powered />
     </PubShell>
   );

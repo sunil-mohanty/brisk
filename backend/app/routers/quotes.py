@@ -11,7 +11,8 @@ from ..logic import get_owned, quote_out, resolve_customer, set_lead_status
 from ..models import Business, Customer, Lead, LeadStatus, Quote, QuoteItem, QuoteStatus, User
 from ..pdf import quote_pdf
 from ..security import current_user
-from ..utils import new_token, quote_label
+from ..utils import new_token, normalize_phone, quote_label
+from .. import wa_bot, whatsapp
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -142,6 +143,45 @@ def mark_shared(quote_id: int, user: User = Depends(current_user), db: Session =
         db.commit()
         db.refresh(q)
     return quote_out(db, q)
+
+
+def _send_wa(db: Session, q: Quote) -> s.WhatsAppSendOut:
+    if q.status in (QuoteStatus.accepted, QuoteStatus.rejected):
+        raise HTTPException(409, f"This quote was already {q.status.value}")
+    if not q.customer or not normalize_phone(q.customer.phone):
+        raise HTTPException(422, "Add the client's mobile number first")
+    if not whatsapp.quotes_automatic():
+        out = quote_out(db, q)
+        return s.WhatsAppSendOut(status="manual", whatsapp_url=out.whatsapp_url)
+    m = wa_bot.send_quote(db, q)
+    if m.status == "sent":
+        q.shared_at = q.shared_at or datetime.now(timezone.utc)
+        record(db, q.business_id, "quote_whatsapp_sent", quote_label(q.number))
+    return s.WhatsAppSendOut(status=m.status, error=m.error)
+
+
+@router.post("/whatsapp-bulk", response_model=s.BulkSendOut)
+def send_whatsapp_bulk(body: s.BulkSendIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Send several quotes (e.g. a bulk quote) automatically, each with its own Accept button."""
+    counts = {"sent": 0, "failed": 0, "manual": 0}
+    for qid in dict.fromkeys(body.quote_ids):
+        q = db.get(Quote, qid)
+        if not q or q.business_id != user.business_id:
+            continue
+        try:
+            counts[_send_wa(db, q).status] += 1
+        except HTTPException:
+            counts["failed"] += 1
+    db.commit()
+    return s.BulkSendOut(**counts)
+
+
+@router.post("/{quote_id}/whatsapp", response_model=s.WhatsAppSendOut)
+def send_whatsapp(quote_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Send the quote from the WhatsApp Business number with Accept / Decline buttons."""
+    out = _send_wa(db, _get(db, quote_id, user.business_id))
+    db.commit()
+    return out
 
 
 @router.post("/{quote_id}/decision", response_model=s.QuoteOut)

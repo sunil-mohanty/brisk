@@ -249,6 +249,8 @@ class Quote(Base):
     service_records: Mapped[list[ServiceRecord]] = relationship(viewonly=True, order_by="ServiceRecord.id")
     campaign: Mapped[Campaign | None] = relationship(viewonly=True)
     appointments: Mapped[list[Appointment]] = relationship(viewonly=True, order_by="Appointment.starts_at")
+    wa_messages: Mapped[list["OutboundMessage"]] = relationship(
+        viewonly=True, order_by="OutboundMessage.id", primaryjoin="and_(Quote.id == foreign(OutboundMessage.quote_id), OutboundMessage.kind == 'quote')")
 
 
 class QuoteItem(Base):
@@ -473,10 +475,66 @@ class OutboundMessage(Base):
     appointment_id: Mapped[int | None] = mapped_column(ForeignKey("appointments.id", ondelete="CASCADE"))
     to_phone: Mapped[str | None] = mapped_column(String(40))
     to_name: Mapped[str | None] = mapped_column(String(160))
-    kind: Mapped[str] = mapped_column(String(30))  # booking_confirmed
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id", ondelete="CASCADE"))
+    wa_message_id: Mapped[str | None] = mapped_column(String(120), index=True)  # Meta's id, for delivered/read updates
+    kind: Mapped[str] = mapped_column(String(30))  # booking_confirmed | quote | bot
     body: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), index=True)  # sent | failed | manual | done
     error: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class SocialAccount(Base):
+    """A salon's Facebook Page, Instagram account or YouTube channel that campaigns can be posted to.
+    Tokens are encrypted (see social.py)."""
+
+    __tablename__ = "social_accounts"
+    __table_args__ = (UniqueConstraint("business_id", "provider", "account_id", name="uq_social_account"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))  # facebook | instagram | youtube
+    account_id: Mapped[str] = mapped_column(String(80))
+    name: Mapped[str] = mapped_column(String(200))
+    handle: Mapped[str | None] = mapped_column(String(200))
+    picture_url: Mapped[str | None] = mapped_column(String(1000))
+    token_enc: Mapped[str] = mapped_column(Text)
+    refresh_enc: Mapped[str | None] = mapped_column(Text)
+    selected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    error: Mapped[str | None] = mapped_column(String(300))  # e.g. "Reconnect: the token was revoked"
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CampaignPost(Base):
+    """One campaign posted to one social account."""
+
+    __tablename__ = "campaign_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    account_name: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(20), default="posting")  # posting | posted | failed
+    caption: Mapped[str] = mapped_column(Text)
+    remote_id: Mapped[str | None] = mapped_column(String(120))
+    url: Mapped[str | None] = mapped_column(String(500))
+    error: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class WhatsAppInbound(Base):
+    """Messages and button taps received from clients. The unique id stops Meta's retries being handled twice."""
+
+    __tablename__ = "whatsapp_inbound"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    wa_message_id: Mapped[str] = mapped_column(String(120), unique=True)
+    from_phone: Mapped[str] = mapped_column(String(40), index=True)
+    kind: Mapped[str] = mapped_column(String(30))  # button | list | text | other
+    payload: Mapped[str | None] = mapped_column(String(500))
+    business_id: Mapped[int | None] = mapped_column(ForeignKey("businesses.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 

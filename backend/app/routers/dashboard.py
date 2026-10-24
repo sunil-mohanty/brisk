@@ -116,7 +116,7 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
         link_taps_7d=taps_7d,
         awaiting_booking=[quote_out(db, q) for q in quotes if q.booking_status == "awaiting" and q.status == QuoteStatus.accepted][:8],
         to_send=[message_out(m) for m in db.scalars(
-            select(OutboundMessage).where(OutboundMessage.business_id == bid, OutboundMessage.status.in_(("manual", "failed"))).order_by(OutboundMessage.id)
+            select(OutboundMessage).where(OutboundMessage.business_id == bid, OutboundMessage.status.in_(("manual", "failed")), OutboundMessage.kind != "bot").order_by(OutboundMessage.id)
         )][:10],
         low_stock=db.scalar(select(func.count(InventoryItem.id)).where(
             InventoryItem.business_id == bid, InventoryItem.low_stock > 0, InventoryItem.stock <= InventoryItem.low_stock)) or 0,

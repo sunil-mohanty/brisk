@@ -304,6 +304,8 @@ class QuoteOut(BaseModel):
     appointment_id: int | None = None
     appointment_at: datetime | None = None
     whatsapp_url: str | None = None
+    wa_status: str | None = None  # the quote sent automatically on WhatsApp: sent | delivered | read | failed
+    wa_error: str | None = None
 
 
 # ---------- services ----------
@@ -787,6 +789,9 @@ class CampaignOut(BaseModel):
     booked: int
     created_at: datetime
     share_text: str
+    whatsapp_accept_url: str | None = None
+    image_version: str = ""
+    post_caption: str = ""
 
 
 class PublicCampaign(BaseModel):
@@ -803,6 +808,7 @@ class PublicCampaign(BaseModel):
     duration_min: int
     notes: str | None
     open_days: list[int] = []
+    whatsapp_accept_url: str | None = None  # opens a chat with the business number, pre-filled with the offer code
 
 
 class CampaignAcceptIn(AcceptIn):
@@ -819,6 +825,66 @@ class CampaignAcceptOut(BaseModel):
     quote_token: str
     booking_status: str
     slot_taken: bool = False
+
+
+class WhatsAppStatus(BaseModel):
+    automatic: bool  # booking confirmations go out by themselves
+    quotes: bool  # quotes go out with Accept / Decline buttons
+    webhook: bool  # replies from clients are handled (verify token set)
+    business_number: str | None = None
+
+
+class WhatsAppSendOut(BaseModel):
+    status: str  # sent | failed | manual
+    error: str | None = None
+    whatsapp_url: str | None = None  # for "manual": open WhatsApp on the owner's phone instead
+
+
+class BulkSendIn(BaseModel):
+    quote_ids: list[int] = Field(min_length=1, max_length=300)
+
+
+class BulkSendOut(BaseModel):
+    sent: int
+    failed: int
+    manual: int
+
+
+class SocialAccountOut(ORM):
+    id: int
+    provider: str
+    name: str
+    handle: str | None
+    picture_url: str | None
+    selected: bool
+    error: str | None
+    connected_at: datetime
+
+
+class SocialStatus(BaseModel):
+    meta_ready: bool  # the platform's Meta app is set up (Facebook + Instagram)
+    google_ready: bool  # the platform's Google project is set up (YouTube)
+    accounts: list[SocialAccountOut]
+
+
+class ConnectOut(BaseModel):
+    url: str
+
+
+class PublishIn(BaseModel):
+    providers: list[str] = Field(min_length=1, max_length=3)
+    caption: str | None = Field(default=None, max_length=2200)
+
+
+class CampaignPostOut(ORM):
+    id: int
+    provider: str
+    account_name: str
+    status: str
+    url: str | None
+    error: str | None
+    created_at: datetime
+    posted_at: datetime | None
 
 
 # ---------- inventory ----------

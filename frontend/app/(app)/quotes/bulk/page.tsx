@@ -7,7 +7,8 @@ import { useSession } from "@/components/session";
 import { ErrorBox, Loading, PageHead, toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money } from "@/lib/format";
-import type { CustomerSummary, Quote } from "@/lib/types";
+import type { BulkSend, CustomerSummary, Quote } from "@/lib/types";
+import { useWhatsApp } from "@/lib/whatsapp";
 
 /** The same quote for many clients (an Eid offer, a loyalty price…), one personal link each, sent on WhatsApp. */
 export default function BulkQuotePage() {
@@ -25,6 +26,8 @@ export default function BulkQuotePage() {
   const [sent, setSent] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [autoResult, setAutoResult] = useState<BulkSend | null>(null);
+  const wa = useWhatsApp();
   useEffect(() => { api.get<CustomerSummary[]>("/customers").then(setClients).catch((e) => setError(e.message)); }, []);
 
   const withPhone = (clients ?? []).filter((c) => c.phone);
@@ -57,10 +60,35 @@ export default function BulkQuotePage() {
     setSent((s) => new Set(s).add(x.id));
   }
 
+  async function sendAll() {
+    if (!made) return;
+    setBusy(true);
+    try {
+      const r = await api.post<BulkSend>("/quotes/whatsapp-bulk", { quote_ids: made.map((x) => x.id) });
+      setAutoResult(r);
+      setSent(new Set(made.map((x) => x.id)));
+      toast(r.failed ? `${r.sent} sent, ${r.failed} couldn't be sent` : `${r.sent} quotes sent on WhatsApp`);
+    } catch (e) { setError((e as Error).message); }
+    setBusy(false);
+  }
+
   if (made) {
     return (
       <>
-        <PageHead title="Send your quotes" eyebrow={`${sent.size} of ${made.length} sent`} sub="Each client gets their own link. Tap Send to open WhatsApp with the message ready, press send, and come back for the next one." action={<Link className="btn" href="/quotes">Done</Link>} />
+        <PageHead title="Send your quotes" eyebrow={`${sent.size} of ${made.length} sent`}
+          sub={wa?.quotes ? "Send them all at once from your WhatsApp Business number. Each client gets Accept and Decline buttons and can book a time in the chat." : "Each client gets their own link. Tap Send to open WhatsApp with the message ready, press send, and come back for the next one."}
+          action={wa?.quotes && !autoResult
+            ? <button className="btn wa" disabled={busy} onClick={sendAll}>{busy ? "Sending…" : `Send all ${made.length} on WhatsApp`}</button>
+            : <Link className="btn" href="/quotes">Done</Link>} />
+        <ErrorBox error={error} />
+        {autoResult && (
+          <div className="wa-banner">
+            <b>{autoResult.sent} sent automatically.</b>
+            {autoResult.failed > 0 && <span>{autoResult.failed} couldn&apos;t be sent; use the Send buttons below for those.</span>}
+            <span>Accepted quotes and bookings appear on your Quotes and Appointments pages by themselves.</span>
+            <Link className="btn sm" href="/quotes">Done</Link>
+          </div>
+        )}
         <section className="panel">
           <div className="list sendlist">
             {made.map((x) => (
@@ -74,7 +102,7 @@ export default function BulkQuotePage() {
             ))}
           </div>
         </section>
-        <p className="note" style={{ marginTop: 12 }}>WhatsApp doesn&apos;t allow one message to many people without its Business API, so each one opens separately from your own number.</p>
+        {!wa?.quotes && <p className="note" style={{ marginTop: 12 }}>WhatsApp doesn&apos;t allow one message to many people without its Business API, so each one opens separately from your own number.</p>}
       </>
     );
   }

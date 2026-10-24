@@ -14,6 +14,7 @@ from .. import schemas as s
 from ..activity import UAE, record
 from ..config import get_settings
 from ..db import get_db
+from .. import creative, social, whatsapp
 from ..logic import get_owned, item_out
 from ..models import Campaign, CampaignItem, Quote, User
 from ..security import current_user
@@ -47,8 +48,17 @@ def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
         items=[item_out(i) for i in c.items], totals=t, vat_rate=c.vat_rate, valid_until=c.valid_until,
         expired=campaign_expired(c), duration_min=c.duration_min, notes=c.notes, active=c.active, views=c.views,
         accepted=accepted, booked=booked, created_at=c.created_at,
-        share_text=f"{c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until} Accept and book your time here: {url}",
+        share_text=f"{c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until} Accept and book your time here: {url}"
+        + (f" or on WhatsApp: {wa}" if (wa := whatsapp_accept_url(c)) else ""),
+        whatsapp_accept_url=wa,
+        image_version=creative.version(c),
+        post_caption=social.default_caption(c, url),
     )
+
+
+def whatsapp_accept_url(c: Campaign) -> str | None:
+    """Chat with the business number, pre-filled; the bot reads the code and replies with free times."""
+    return whatsapp.accept_link(f"Hi! I'd like to accept the offer \"{c.title}\" from {c.business.name} (code {c.token})")
 
 
 def _items(body_items) -> list[CampaignItem]:

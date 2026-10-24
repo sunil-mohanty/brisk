@@ -129,6 +129,8 @@ def quote_out(db: Session, q: Quote) -> s.QuoteOut:
         appointment_id=appt.id if appt else None,
         appointment_at=appt.starts_at if appt else None,
         whatsapp_url=whatsapp_link(q.customer.phone, msg),
+        wa_status=(last_wa := next((m for m in reversed(q.wa_messages) if m.status != "manual"), None)) and last_wa.status,
+        wa_error=last_wa.error if last_wa else None,
     )
 
 

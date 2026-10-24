@@ -38,7 +38,8 @@ from ..models import (
 )
 from ..pdf import quote_pdf
 from ..utils import is_expired, normalize_phone, quote_label, valid_until, whatsapp_link
-from .campaigns import campaign_expired, totals as campaign_totals
+from .campaigns import campaign_expired, campaign_url, totals as campaign_totals, whatsapp_accept_url
+from .. import creative
 from .quotes import apply_decision
 from ..utils import new_token
 
@@ -484,8 +485,33 @@ def _public_campaign(c: Campaign) -> s.PublicCampaign:
         business=public_business(c.business), title=c.title, description=c.description,
         items=[item_out(i) for i in c.items], totals=campaign_totals(c), vat_rate=c.vat_rate, currency=c.business.currency,
         valid_until=c.valid_until, expired=campaign_expired(c), active=c.active, duration_min=c.duration_min,
-        notes=c.notes, open_days=_open_days(c.business),
+        notes=c.notes, open_days=_open_days(c.business), whatsapp_accept_url=whatsapp_accept_url(c),
     )
+
+
+_VIDEO_CACHE: dict[str, bytes] = {}
+
+
+@router.get("/c/{token}/image/{fmt}.jpg")
+def campaign_image(token: str, fmt: str, db: Session = Depends(get_db)):
+    """The ready-to-post picture (square, portrait or story). Public, so Instagram and Facebook can fetch it."""
+    if fmt not in creative.SIZES:
+        raise HTTPException(404, "Unknown format")
+    c = _campaign(db, token)
+    return Response(creative.render(c, campaign_url(c), fmt), media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
+
+
+@router.get("/c/{token}/video.mp4")
+def campaign_video(token: str, db: Session = Depends(get_db)):
+    """An 8-second vertical video of the offer (YouTube Shorts, Reels)."""
+    c = _campaign(db, token)
+    key = f"{c.token}:{creative.version(c)}"
+    if key not in _VIDEO_CACHE:
+        if len(_VIDEO_CACHE) > 20:
+            _VIDEO_CACHE.clear()
+        _VIDEO_CACHE[key] = creative.video(c, campaign_url(c))
+    return Response(_VIDEO_CACHE[key], media_type="video/mp4", headers={"Cache-Control": "public, max-age=300"})
 
 
 @router.get("/c/{token}", response_model=s.PublicCampaign)
@@ -503,16 +529,12 @@ def campaign_slots(token: str, day: date = Query(), db: Session = Depends(get_db
     return s.SlotsOut(day=day, duration_min=c.duration_min, slots=booking.free_slots(db, c.business, day, c.duration_min))
 
 
-@router.post("/c/{token}/accept", response_model=s.CampaignAcceptOut, status_code=201)
-def accept_campaign(token: str, body: s.CampaignAcceptIn, db: Session = Depends(get_db)):
-    """A client accepts the offer: they get their own accepted quote, booked if they chose a free time."""
-    c = _campaign(db, token)
-    if not c.active or campaign_expired(c):
-        raise HTTPException(409, "This offer has ended. Message the salon for current prices.")
+def create_campaign_quote(db: Session, c: Campaign, name: str, phone: str) -> Quote:
+    """The client's own accepted quote for a campaign offer (from the offer page or WhatsApp)."""
     b = c.business
-    customer = find_customer_by_phone(db, b.id, body.phone)
+    customer = find_customer_by_phone(db, b.id, phone)
     if not customer:
-        customer = Customer(business_id=b.id, name=body.name, phone=body.phone)
+        customer = Customer(business_id=b.id, name=name, phone=phone)
         db.add(customer)
         db.flush()
     lead = Lead(business_id=b.id, customer_id=customer.id, source=f"Campaign: {c.title}"[:80], service_interest=c.title[:300],
@@ -535,6 +557,16 @@ def accept_campaign(token: str, body: s.CampaignAcceptIn, db: Session = Depends(
     db.flush()
     q.lead_id = lead.id
     record(db, b.id, "campaign_accepted", c.title)
+    return q
+
+
+@router.post("/c/{token}/accept", response_model=s.CampaignAcceptOut, status_code=201)
+def accept_campaign(token: str, body: s.CampaignAcceptIn, db: Session = Depends(get_db)):
+    """A client accepts the offer: they get their own accepted quote, booked if they chose a free time."""
+    c = _campaign(db, token)
+    if not c.active or campaign_expired(c):
+        raise HTTPException(409, "This offer has ended. Message the salon for current prices.")
+    q = create_campaign_quote(db, c, body.name, body.phone)
     slot_taken = False
     if body.day and body.time:
         db.flush()

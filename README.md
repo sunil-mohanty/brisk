@@ -26,6 +26,12 @@ Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  �
   - Clients **accept on the page and can book a free time** (from opening hours, staff and the diary). Free slot →
     *Accepted · Booking confirmed*, appointment created and a WhatsApp confirmation sent (automatic with the
     WhatsApp Cloud API, otherwise one tap for the owner). No time chosen or slot taken → *Accepted · Awaiting booking*.
+- **Post campaigns to Facebook, Instagram and YouTube** from Quotes → Campaigns: each salon connects its own Page,
+  Instagram and channel; the picture (with price and QR code) and an 8-second Short are made automatically; clients
+  tap or scan, accept and book. Setup: [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md#posting-campaigns-to-facebook-instagram-and-youtube).
+- **WhatsApp Business API** (optional, later phase): quotes go out with **Accept / Decline** buttons; the client accepts and picks a
+  free day and time inside WhatsApp, and the booking and confirmation happen by themselves. Campaigns get an
+  "Accept on WhatsApp" link. Delivered/read ticks on each quote. Setup: [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md#whatsapp-business-api-automatic-quotes-accept-buttons-and-booking-in-the-chat-optional).
 - **Inventory**: products, stock in/used/sold/counted, reorder levels, stock value.
 - **Link page** is switched on per salon by the platform admin (Admin → salon → Features).
 - **Visits & rebooking**: every client's history link, and a "Due to rebook" list with one-tap WhatsApp invitations.
@@ -62,7 +68,7 @@ then `cd frontend && npm install && npm run dev`.
 ## Tests
 
 ```bash
-cd backend && pytest        # 46 tests: full lifecycle, appointments, clashes, link page, booking requests, tenant isolation
+cd backend && pytest        # 61 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
 ```
 
 ## Brand name
@@ -78,5 +84,6 @@ cd backend && pytest        # 46 tests: full lifecycle, appointments, clashes, l
 ```
 App:     /dashboard (Today) /appointments /leads /quotes /link /customers /services /team /settings /qr
 Public:  /{slug} link page · /a/{token} appointment · /q/{token} quote · /s/{token} visit history · /l/{code} QR page
-API:     /api/appointments  /api/team  /api/linkpage  /api/public/b/{slug}[/tap|/book]  /api/public/a/{token}[/ics]
+API:     /api/whatsapp/webhook (Meta)  /api/quotes/{id}/whatsapp
+         /api/appointments  /api/team  /api/linkpage  /api/public/b/{slug}[/tap|/book]  /api/public/a/{token}[/ics]
 ```

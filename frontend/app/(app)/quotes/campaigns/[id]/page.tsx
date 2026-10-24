@@ -10,6 +10,7 @@ import { api, download } from "@/lib/api";
 import { fmtDate, fmtDay, fmtTime, money, uaeDate } from "@/lib/format";
 import type { Campaign, Quote } from "@/lib/types";
 import { duration } from "@/lib/vocab";
+import { SocialPost } from "@/components/SocialPost";
 
 export default function CampaignPage() {
   return <Suspense fallback={<Loading />}><CampaignDetail /></Suspense>;
@@ -65,10 +66,11 @@ function CampaignDetail() {
         <div className="kpi"><span>Accepted</span><strong>{c.accepted}</strong><em>{c.views ? `${Math.round((c.accepted / c.views) * 100)}% of views` : "no views yet"}</em></div>
         <div className="kpi"><span>Booked a time</span><strong>{c.booked}</strong><em>{c.accepted - c.booked} still to book in</em></div>
       </div>
-      <div className="detail">
+      <SocialPost c={c} />
+      <div className="detail" style={{ marginTop: 16 }}>
         <div className="stack">
           <section className="panel">
-            <h2>Share it</h2>
+            <h2>Or share the link yourself <span className="muted small">TikTok, Snapchat, WhatsApp status, ads</span></h2>
             <div className="linkbox">
               <input readOnly value={c.public_url} onFocus={(e) => e.target.select()} aria-label="Campaign link" />
               <button className="btn" onClick={() => copyText(c.public_url)}>Copy link</button>
@@ -80,6 +82,15 @@ function CampaignDetail() {
               <a className="btn wa" href={`https://wa.me/?text=${encodeURIComponent(c.share_text)}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
               <a className="btn" href={`/c/${c.token}?preview=1`} target="_blank" rel="noreferrer">Preview offer page</a>
             </div>
+            {c.whatsapp_accept_url && (
+              <>
+                <p className="small muted" style={{ margin: "14px 0 6px" }}>&quot;Accept on WhatsApp&quot; link, for a WhatsApp button on an ad or a story. Clients accept and pick a time in the chat:</p>
+                <div className="linkbox">
+                  <input readOnly value={c.whatsapp_accept_url} onFocus={(e) => e.target.select()} aria-label="Accept on WhatsApp link" />
+                  <button className="btn" onClick={() => copyText(c.whatsapp_accept_url!)}>Copy</button>
+                </div>
+              </>
+            )}
           </section>
           <section className="panel">
             <h2>Clients who accepted <span className="muted small">{responses?.length ?? 0}</span></h2>

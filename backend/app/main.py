@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .db import Base, engine
 from .timing import TimingMiddleware
-from .routers import admin, appointments, auth, campaigns, catalog, customers, dashboard, inventory, leads, linkpage, messages, public, qr, quotes, services, team
+from .routers import admin, appointments, auth, campaigns, catalog, customers, dashboard, inventory, leads, linkpage, messages, public, qr, quotes, services, social, team, whatsapp_hook
 
 
 @asynccontextmanager
@@ -26,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth, customers, leads, qr, quotes, services, catalog, dashboard, public, admin, appointments, team, linkpage, campaigns, inventory, messages):
+for r in (auth, customers, leads, qr, quotes, services, catalog, dashboard, public, admin, appointments, team, linkpage, campaigns, inventory, messages, whatsapp_hook, social):
     app.include_router(r.router, prefix="/api")
 
 
