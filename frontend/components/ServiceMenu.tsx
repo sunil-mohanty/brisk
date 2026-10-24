@@ -5,11 +5,14 @@ import { useSession } from "@/components/session";
 import { toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { CatalogItem } from "@/lib/types";
-import { CATEGORIES, duration, vocab } from "@/lib/vocab";
+import { duration, vocab } from "@/lib/vocab";
+import { categoriesFor } from "@/lib/vocab";
+import { words } from "@/lib/words";
 
 /** The salon's service menu: used for bookings, quotes and the public link page. */
 export function ServiceMenu() {
   const { business } = useSession();
+  const W = words(business.business_type);
   const v = vocab(business.business_type);
   const [items, setItems] = useState<CatalogItem[] | null>(null);
   const [f, setF] = useState({ name: "", price: "", minutes: "60", category: "" });
@@ -47,7 +50,7 @@ export function ServiceMenu() {
 
   return (
     <section className="panel" id="menu">
-      <h2>Service menu <span className="muted small">{items?.length ?? 0} services</span></h2>
+      <h2>{W.vertical === "real_estate" ? "Listings" : "Service menu"} <span className="muted small">{items?.length ?? 0} {W.services}</span></h2>
       <p className="muted small" style={{ marginTop: -6 }}>Tap these when booking or quoting. Clients see them on your link page.</p>
       {ideas.length > 0 && (
         <div className="pricechips" style={{ marginBottom: 12 }}>
@@ -65,8 +68,8 @@ export function ServiceMenu() {
         <input id="mn-cat" list="menu-cats" value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} placeholder="Category, e.g. Hair" aria-label="Category" maxLength={60} />
         <button className="btn primary" disabled={!f.name.trim() || f.price === ""}>Add</button>
       </form>
-      <datalist id="menu-cats">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
-      {items && items.length === 0 && <p className="muted small" style={{ margin: "12px 0 0" }}>Your menu is empty. Add your services above, or tap the suggestions.</p>}
+      <datalist id="menu-cats">{categoriesFor(business.business_type).map((c) => <option key={c} value={c} />)}</datalist>
+      {items && items.length === 0 && <p className="muted small" style={{ margin: "12px 0 0" }}>{W.vertical === "real_estate" ? "No listings yet. Add properties and services above, or tap the suggestions." : "Your menu is empty. Add your services above, or tap the suggestions."}</p>}
       {groups.map(([cat, list]) => (
         <div className="menu-group" key={cat}>
           <h3>{cat}</h3>

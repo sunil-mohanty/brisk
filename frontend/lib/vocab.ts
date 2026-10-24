@@ -88,8 +88,23 @@ export const VOCAB: Record<BusinessType, Vocab> = {
     refPlaceholder: "e.g. Villa 12, Arabian Ranches · gate code 4521",
     menu: [H("Home visit charge", 50, 0, "Visit"), H("Blow-dry at home", 150, 45, "Hair"), H("Party makeup", 350, 60, "Makeup"), H("Mani-pedi at home", 200, 90, "Nails"), H("Bridal hair & makeup", 2000, 180, "Bridal")],
   },
+  real_estate: {
+    ...base,
+    label: "Real estate brokerage",
+    examples: "Sales, leasing, valuations and property management",
+    staff: "Agent",
+    staffPlaceholder: "Omar",
+    itemPlaceholder: "Viewing – 2BR, Dubai Marina",
+    requirementPlaceholder: "2BR in Dubai Marina, budget AED 2.5M, sea view, ready to move…",
+    quoteNotesPlaceholder: "Agency fee, cheques, deposit, what's included, documents needed…",
+    recordNotesPlaceholder: "Unit, contract dates, landlord / seller details, renewal date…",
+    refPlaceholder: "e.g. Marina Gate 1, unit 2304 · move-in 1 Dec",
+    rebookWeeks: 52,
+    menu: [H("Viewing – apartment for sale", 0, 45, "For sale"), H("Viewing – apartment for rent", 0, 30, "For rent"), H("Viewing – villa", 0, 60, "For sale"), H("Property valuation visit", 750, 60, "Services"), H("Tenancy contract & Ejari", 1200, 30, "Services"), H("Property management (yearly)", 5000, 30, "Services")],
+  },
 };
 
+/** Kinds of salon (the salon-type picker). Real estate is its own line of business, chosen at sign-up. */
 export const BUSINESS_TYPES: BusinessType[] = ["unisex", "ladies", "gents", "spa", "nails", "home"];
 
 export function vocab(type: string | null | undefined): Vocab {
@@ -98,6 +113,8 @@ export function vocab(type: string | null | undefined): Vocab {
 
 /** Common menu headings, offered when adding a service. */
 export const CATEGORIES = ["Hair", "Colour", "Nails", "Skin", "Brows & lashes", "Grooming", "Beard", "Massage", "Body", "Makeup", "Bridal"];
+export const RE_CATEGORIES = ["For sale", "For rent", "Off-plan", "Commercial", "Services"];
+export const categoriesFor = (t: string | null | undefined) => (t === "real_estate" ? RE_CATEGORIES : CATEGORIES);
 
 export const TIME_SLOTS = ["Morning", "Afternoon", "Evening", "Any time"];
 

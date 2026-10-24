@@ -10,13 +10,23 @@ class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Kind of salon. Changes the starter service menu and a few words in the app.
-BUSINESS_TYPES = ("unisex", "ladies", "gents", "spa", "nails", "home")
+# Kind of business. Salons have several kinds (starter menu, staff word); real estate is its own line of
+# business with its own theme and words (viewings, agents, listings, deals).
+SALON_TYPES = ("unisex", "ladies", "gents", "spa", "nails", "home")
+REAL_ESTATE_TYPES = ("real_estate",)
+BUSINESS_TYPES = SALON_TYPES + REAL_ESTATE_TYPES
 
 
 def clean_business_type(v: str | None) -> str:
     v = (v or "").strip().lower()
+    if v in ("realestate", "real-estate", "real estate", "broker", "brokerage"):
+        v = "real_estate"
     return v if v in BUSINESS_TYPES else "unisex"
+
+
+def vertical_of(business_type: str | None) -> str:
+    """salon | real_estate: decides the app's theme and words."""
+    return "real_estate" if business_type in REAL_ESTATE_TYPES else "salon"
 
 
 # ---------- auth / business ----------
@@ -420,6 +430,7 @@ class PublicBusiness(BaseModel):
     trn: str | None
     initials: str
     business_type: str = "unisex"
+    vertical: str = "salon"
     slug: str | None = None
 
 
@@ -652,7 +663,7 @@ class LinkItemOut(ORM):
     clicks: int
 
 
-LINK_THEMES = ("clay", "sand", "rose", "noir", "sage")
+LINK_THEMES = ("clay", "sand", "rose", "noir", "sage", "navy")
 LINK_MOTIONS = ("bloom", "drift", "shimmer", "calm")
 
 

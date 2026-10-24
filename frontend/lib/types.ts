@@ -23,7 +23,7 @@ export interface Business {
   closed_days: string;
 }
 
-export type BusinessType = "unisex" | "ladies" | "gents" | "spa" | "nails" | "home";
+export type BusinessType = "unisex" | "ladies" | "gents" | "spa" | "nails" | "home" | "real_estate";
 
 export interface CatalogItem {
   id: number;
@@ -178,6 +178,7 @@ export interface PublicBusiness {
   trn: string | null;
   initials: string;
   business_type?: BusinessType;
+  vertical?: "salon" | "real_estate";
   slug?: string | null;
 }
 
@@ -311,7 +312,7 @@ export interface Appointment {
 }
 
 export interface LinkItem { id: number; label: string; url: string; highlight: boolean; position: number; clicks: number }
-export type LinkTheme = "clay" | "sand" | "rose" | "noir" | "sage";
+export type LinkTheme = "clay" | "sand" | "rose" | "noir" | "sage" | "navy";
 export type LinkMotion = "bloom" | "drift" | "shimmer" | "calm";
 
 export interface LinkPage {

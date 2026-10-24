@@ -13,7 +13,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const q = await fetchQuote(token);
   const decided = q?.status === "accepted" ? "Accepted" : q?.status === "rejected" ? "Declined" : q?.expired ? "Expired" : null;
   return new ImageResponse(
-    <OgCard initials={q?.business.initials ?? "S"} name={q?.business.name ?? "Salon"} kicker={q ? `Quotation ${q.label}` : "Quotation"}
+    <OgCard vertical={q?.business.vertical} initials={q?.business.initials ?? "S"} name={q?.business.name ?? "Business"} kicker={q ? `Quotation ${q.label}` : "Quotation"}
       big={q ? aed(q.totals.total, q.currency) : ""} sub={q ? `for ${q.customer_name}` : undefined} cta={decided ?? "Tap to view & accept"} done={decided === "Accepted"} />,
     { ...size, fonts: await ogFonts(), headers: { "Cache-Control": "public, max-age=300" } },
   );

@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { todayUAE } from "@/lib/format";
 import { vocab } from "@/lib/vocab";
 import type { CustomerRef, Quote, ServiceRecord } from "@/lib/types";
+import { words } from "@/lib/words";
 
 export default function NewServicePage() {
   return <Suspense fallback={<Loading />}><ServiceForm /></Suspense>;
@@ -20,6 +21,7 @@ function ServiceForm() {
   const router = useRouter();
   const quoteId = useSearchParams().get("quote");
   const { business } = useSession();
+  const W = words(business.business_type);
   const v = vocab(business.business_type);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [ref, setRef] = useState<CustomerRef>({});
@@ -54,7 +56,7 @@ function ServiceForm() {
         reference: f.reference.trim() || null,
         next_service_date: f.weeks === "0" ? null : addWeeks(f.service_date, Number(f.weeks)),
       });
-      toast("Visit saved. Share the history link with your client.");
+      toast(`${W.Visit} saved. Share the history link with your client.`);
       window.open(r.public_url, "_blank");
       router.push("/services");
     } catch (e) {
@@ -67,9 +69,9 @@ function ServiceForm() {
   return (
     <>
       <PageHead
-        eyebrow="Visits"
-        title="Record a visit"
-        sub={quote ? `From ${quote.label} for ${quote.customer.name}.` : "For walk-ins you didn't book in the diary. The client gets a link with their full history."}
+        eyebrow={W.Visits}
+        title={`Record a ${W.visit}`}
+        sub={quote ? `From ${quote.label} for ${quote.customer.name}.` : W.vertical === "real_estate" ? "For a deal you closed outside the calendar. The client gets a link with their full history." : "For walk-ins you didn't book in the diary. The client gets a link with their full history."}
       />
       <div className="card">
         <ErrorBox error={error} />
@@ -90,7 +92,7 @@ function ServiceForm() {
         </div>
         <div className="foot">
           <button className="btn" onClick={() => router.back()}>Cancel</button>
-          <button className="btn primary" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save visit"}</button>
+          <button className="btn primary" onClick={save} disabled={busy}>{busy ? "Saving…" : `Save ${W.visit}`}</button>
         </div>
       </div>
     </>

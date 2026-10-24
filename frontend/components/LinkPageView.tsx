@@ -7,6 +7,8 @@ import { addDays, fmtDay, todayUAE } from "@/lib/format";
 import { site } from "@/lib/site";
 import type { PublicLinkPage, PublicMenuItem } from "@/lib/types";
 import { duration, TIME_SLOTS } from "@/lib/vocab";
+import { BriskMark } from "@/components/Logo";
+import { words } from "@/lib/words";
 
 type Tap = "whatsapp" | "call" | "instagram" | "tiktok" | "snapchat" | "facebook" | "maps" | "link";
 const SOCIAL_ORDER = ["instagram", "tiktok", "snapchat", "facebook"] as const;
@@ -55,7 +57,7 @@ export function LinkPageView({ slug, initial, preview = false, demo = false }: {
   const st = () => ({ "--i": n++ }) as React.CSSProperties;
 
   return (
-    <div className={`lk lk-${p.theme} lk-m-${p.motion}${preview ? " lk-preview" : ""}`}>
+    <div className={`lk lk-${p.theme} lk-m-${p.motion}${preview ? " lk-preview" : ""}${b.business_type === "real_estate" ? " lk-re" : ""}`}>
       {p.motion === "drift" && <div className="lk-drift" aria-hidden="true"><i /><i /><i /></div>}
       <div className="lk-in">
         <header className="lk-hero">
@@ -72,7 +74,7 @@ export function LinkPageView({ slug, initial, preview = false, demo = false }: {
         </header>
 
         <div className="lk-actions">
-          {p.booking && <button type="button" className="lk-btn lk-primary lk-st" style={st()} onClick={() => setBooking(true)}>Request an appointment</button>}
+          {p.booking && <button type="button" className="lk-btn lk-primary lk-st" style={st()} onClick={() => setBooking(true)}>{words(b.business_type).bookCta}</button>}
           {b.whatsapp_url && <button type="button" className="lk-btn lk-st" style={st()} onClick={() => tap("whatsapp")}>{Social.whatsapp()}Message us on WhatsApp</button>}
           {p.links.map((l) => (
             <button key={l.id} type="button" className={`lk-btn lk-st${l.highlight ? " lk-hl" : ""}`} style={st()} onClick={() => tap("link", l.id)}>
@@ -84,7 +86,7 @@ export function LinkPageView({ slug, initial, preview = false, demo = false }: {
 
         {groups.length > 0 && (
           <section className="lk-menu lk-st" style={st()} aria-labelledby="lk-menu-h">
-            <h2 id="lk-menu-h">Menu</h2>
+            <h2 id="lk-menu-h">{b.business_type === "real_estate" ? "Listings" : "Menu"}</h2>
             {groups.length > 1 && (
               <div className="lk-cats" role="tablist" aria-label="Menu sections">
                 {groups.map(([cat]) => (
@@ -135,7 +137,7 @@ export function LinkPageView({ slug, initial, preview = false, demo = false }: {
           </section>
         )}
 
-        <a className="lk-made" href="/" target="_blank" rel="noreferrer"><i className="mark" aria-hidden="true" />Made with {site.name}</a>
+        <a className="lk-made" href="/" target="_blank" rel="noreferrer"><BriskMark size={16} tile="currentColor" ink="var(--bg, #fff)" spark="var(--bg, #fff)" />Made with {site.name}</a>
       </div>
 
       {p.booking && picked.length > 0 && !booking && (
@@ -198,7 +200,7 @@ function BookingSheet({ slug, page, picked, setPicked, preview, onClose }: {
         ) : (
           <form onSubmit={send}>
             <div className="lk-sheet-head">
-              <h2 id="lk-book-h">Request an appointment</h2>
+              <h2 id="lk-book-h">{words(page.business.business_type).bookCta}</h2>
               <button type="button" className="lk-x" onClick={onClose} aria-label="Close">×</button>
             </div>
             {page.menu.length > 0 && (

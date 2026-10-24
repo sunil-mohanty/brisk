@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { daysUntil, fmtDate, money } from "@/lib/format";
 import type { PublicService } from "@/lib/types";
 import { vocab } from "@/lib/vocab";
+import { words } from "@/lib/words";
 
 export function ServiceCard() {
   const { token } = useParams<{ token: string }>();
@@ -23,10 +24,10 @@ export function ServiceCard() {
     : null;
 
   return (
-    <PubShell>
+    <PubShell vertical={s.business.vertical}>
       <PubHeader business={s.business} />
       <div className="pcard">
-        <div className="kicker">Your visit</div>
+        <div className="kicker">Your {words(s.business.business_type).visit}</div>
         <h3>{s.service}</h3>
         <div className="pmeta">
           <div>Client<b>{s.customer_name}</b></div>
@@ -39,7 +40,7 @@ export function ServiceCard() {
       </div>
       {s.next_service_date && (
         <div className="next">
-          <div><span>Your next visit, around</span><br /><b>{fmtDate(s.next_service_date)}</b></div>
+          <div><span>{s.business.vertical === "real_estate" ? "We'll be in touch around" : "Your next visit, around"}</span><br /><b>{fmtDate(s.next_service_date)}</b></div>
           <span>{d! < 0 ? "Due now" : `in ${d} days`}</span>
         </div>
       )}
@@ -55,7 +56,7 @@ export function ServiceCard() {
           ))}
         </div>
       </div>
-      {wa && <div className="pbtns"><a className="btn wa" href={wa} target="_blank" rel="noreferrer">Book your next visit on WhatsApp</a></div>}
+      {wa && <div className="pbtns"><a className="btn wa" href={wa} target="_blank" rel="noreferrer">{s.business.vertical === "real_estate" ? "Message us on WhatsApp" : "Book your next visit on WhatsApp"}</a></div>}
       <small>Bookmark this page. It keeps your full history with {s.business.name}.</small>
       <Powered />
     </PubShell>

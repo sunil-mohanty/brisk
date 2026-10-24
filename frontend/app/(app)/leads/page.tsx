@@ -11,6 +11,7 @@ import type { CustomerRef, Lead, LeadStatus, QR } from "@/lib/types";
 import { useSession } from "@/components/session";
 import { TIME_SLOTS, vocab } from "@/lib/vocab";
 import { Tip } from "@/components/Tips";
+import { words } from "@/lib/words";
 
 const STATUSES: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"];
 const LABEL: Record<LeadStatus, string> = { new: "New", contacted: "Replied", quoted: "Quoted", won: "Booked", lost: "Not booked" };
@@ -104,7 +105,8 @@ export default function LeadsPage() {
 }
 
 function AddLead({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const v = vocab(useSession().business.business_type);
+  const { business } = useSession();
+  const v = vocab(business.business_type);
   const [ref, setRef] = useState<CustomerRef>({});
   const [source, setSource] = useState("Phone call");
   const [requirement, setRequirement] = useState("");
@@ -137,7 +139,7 @@ function AddLead({ onDone, onCancel }: { onDone: () => void; onCancel: () => voi
             {[...new Set(["Phone call", "WhatsApp", "Walk-in", "Instagram", "TikTok", "Snapchat", "Google", "Recommended by a client", ...qrs.map((q) => q.name)])].map((s) => <option key={s}>{s}</option>)}
           </select>
         </label>
-        <label className="full">Service they want<input id="lead-svc" value={service} onChange={(e) => setService(e.target.value)} placeholder={v.itemPlaceholder} /></label>
+        <label className="full">{words(business.business_type).vertical === "real_estate" ? "What they're looking for" : "Service they want"}<input id="lead-svc" value={service} onChange={(e) => setService(e.target.value)} placeholder={v.itemPlaceholder} /></label>
         <label>Preferred day <span className="hint">(optional)</span><input id="lead-date" type="date" min={todayUAE()} value={prefDate} onChange={(e) => setPrefDate(e.target.value)} /></label>
         <label>Preferred time
           <select id="lead-time" value={prefTime} onChange={(e) => setPrefTime(e.target.value)}>

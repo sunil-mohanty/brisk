@@ -92,6 +92,8 @@ def signup(body: s.SignupIn, request: Request, db: Session = Depends(get_db)):
         signup_source=(body.source or "").strip().lower()[:120] or None,
         signup_campaign=(body.campaign or "").strip()[:160] or None,
     )
+    if s.vertical_of(biz.business_type) == "real_estate":
+        biz.link_theme, biz.link_motion = "navy", "calm"
     if invite:
         biz.invite_code_id = invite.id
         biz.plan, biz.plan_amount = invite.plan, invite.plan_amount

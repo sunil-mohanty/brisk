@@ -60,7 +60,8 @@ docker compose up --build
 docker compose exec api python -m app.seed     # demo salon
 ```
 
-Open http://localhost:3000. Demo login: `demo@tressa.app` / `demo12345`. Demo link page: http://localhost:3000/layla-beauty
+Open http://localhost:3000. Demo logins (password `demo12345`): `demo@tressa.app` (salon, link page /layla-beauty) and
+`broker@tressa.app` (real estate, link page /marina-key).
 
 Without Docker: see the Xymber steps — `cd backend && pip install -r requirements.txt && alembic upgrade head && uvicorn app.main:app --reload`,
 then `cd frontend && npm install && npm run dev`.
@@ -68,7 +69,7 @@ then `cd frontend && npm install && npm run dev`.
 ## Tests
 
 ```bash
-cd backend && pytest        # 61 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
+cd backend && pytest        # 65 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
 ```
 
 ## Brand name

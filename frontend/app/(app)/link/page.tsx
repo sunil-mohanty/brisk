@@ -14,6 +14,7 @@ const THEMES: [LinkTheme, string, string, string][] = [
   ["sand", "Sand", "#efe5d3", "#8a6a3a"],
   ["rose", "Rose", "#f5e5e1", "#a8505f"],
   ["sage", "Sage", "#e8eadf", "#56663f"],
+  ["navy", "Navy", "#eef0f3", "#1f3a5f"],
   ["noir", "Noir", "#1d1714", "#d9946a"],
 ];
 const MOTIONS: [LinkMotion, string, string][] = [
@@ -75,7 +76,7 @@ export default function LinkPageEditor() {
   if (!business.link_page_enabled) return (
     <>
       <PageHead title="Link page" eyebrow="Not switched on" />
-      <div className="panel empty" style={{ padding: 40 }}>The link page isn&apos;t switched on for your salon yet. Message us on WhatsApp and we&apos;ll turn it on.</div>
+      <div className="panel empty" style={{ padding: 40 }}>The link page isn&apos;t switched on for your business yet. Message us on WhatsApp and we&apos;ll turn it on.</div>
     </>
   );
   if (error && !p) return <ErrorBox error={error} />;
@@ -110,12 +111,12 @@ export default function LinkPageEditor() {
                 </Tip>
                 <span className="hint">Letters, numbers and dashes. Changing it breaks the old link, so change it before you share it.</span>
               </label>
-              <label className="full">About your salon<textarea id="lp-bio" value={f.bio} onChange={set("bio")} maxLength={300} placeholder="Unisex salon in Al Barsha. Colour, cuts, nails and bridal. Walk-ins welcome." /></label>
+              <label className="full">About you<textarea id="lp-bio" value={f.bio} onChange={set("bio")} maxLength={300} placeholder="Unisex salon in Al Barsha. Colour, cuts, nails and bridal. Walk-ins welcome." /></label>
               <label>Opening hours<input id="lp-hours" value={f.hours} onChange={set("hours")} maxLength={200} placeholder="Daily 10am – 10pm · Fri from 2pm" /></label>
               <label>Google Maps link<input id="lp-maps" value={f.maps_url} onChange={set("maps_url")} placeholder="Paste from Google Maps → Share" /></label>
-              <label className="handle">Instagram{Social.instagram()}<input id="lp-ig" value={f.instagram} onChange={set("instagram")} placeholder="yoursalon" autoCapitalize="none" /></label>
-              <label className="handle">TikTok{Social.tiktok()}<input id="lp-tt" value={f.tiktok} onChange={set("tiktok")} placeholder="yoursalon" autoCapitalize="none" /></label>
-              <label className="handle">Snapchat{Social.snapchat()}<input id="lp-sc" value={f.snapchat} onChange={set("snapchat")} placeholder="yoursalon" autoCapitalize="none" /></label>
+              <label className="handle">Instagram{Social.instagram()}<input id="lp-ig" value={f.instagram} onChange={set("instagram")} placeholder="yourbusiness" autoCapitalize="none" /></label>
+              <label className="handle">TikTok{Social.tiktok()}<input id="lp-tt" value={f.tiktok} onChange={set("tiktok")} placeholder="yourbusiness" autoCapitalize="none" /></label>
+              <label className="handle">Snapchat{Social.snapchat()}<input id="lp-sc" value={f.snapchat} onChange={set("snapchat")} placeholder="yourbusiness" autoCapitalize="none" /></label>
               <label className="handle">Facebook{Social.facebook()}<input id="lp-fb" value={f.facebook} onChange={set("facebook")} placeholder="Page name or link" autoCapitalize="none" /></label>
             </div>
             <div className="foot"><button className="btn primary" disabled={busy || !changed}>{busy ? "Saving…" : changed ? "Save changes" : "Saved"}</button></div>
@@ -123,7 +124,7 @@ export default function LinkPageEditor() {
 
           <section className="panel">
             <h2>Look</h2>
-            <Tip id="lp.look" order={2} text="Pick colours that match your salon. The preview updates straight away.">
+            <Tip id="lp.look" order={2} text="Pick colours that match your brand. The preview updates straight away.">
               <div className="swatches" role="group" aria-label="Colours">
                 {THEMES.map(([id, name, bg, ac]) => (
                   <button key={id} type="button" className="swatch" aria-pressed={p.link_theme === id} style={{ "--sw-bg": bg, "--sw-ac": ac } as React.CSSProperties} onClick={() => patch({ link_theme: id })}>
@@ -163,7 +164,7 @@ export default function LinkPageEditor() {
             <div className="list">
               <div className="row"><div className="l"><b>Service menu</b><div>Prices and times, grouped by category</div></div><Link className="btn sm" href="/menu">Edit menu</Link></div>
               <div className="row"><div className="l"><b>Your team</b><div>Clients can ask for someone by name</div></div><Link className="btn sm" href="/team">Edit team</Link></div>
-              <div className="row"><div className="l"><b>WhatsApp, phone and address</b><div>From your salon profile</div></div><Link className="btn sm" href="/settings">Edit profile</Link></div>
+              <div className="row"><div className="l"><b>WhatsApp, phone and address</b><div>From your profile</div></div><Link className="btn sm" href="/settings">Edit profile</Link></div>
             </div>
           </section>
           <div className="mobile-preview acts" style={{ justifyContent: "stretch" }}>
@@ -207,7 +208,7 @@ function AddLink({ onAdd, disabled }: { onAdd: (b: { label: string; url: string 
   return (
     <form className="plist-add" style={{ display: "grid", gridTemplateColumns: "1fr 1.3fr auto", gap: 8, marginTop: 12 }} onSubmit={async (e) => { e.preventDefault(); if (!label.trim() || !url.trim()) return; await onAdd({ label: label.trim(), url: url.trim() }); setLabel(""); setUrl(""); }}>
       <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Button text, e.g. Bridal lookbook" aria-label="Button text" maxLength={80} disabled={disabled} />
-      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link, e.g. yoursalon.ae/bridal" aria-label="Link" disabled={disabled} />
+      <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Link, e.g. yourbusiness.ae/offers" aria-label="Link" disabled={disabled} />
       <button className="btn" disabled={disabled || !label.trim() || !url.trim()}>Add button</button>
     </form>
   );

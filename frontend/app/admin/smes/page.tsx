@@ -44,8 +44,8 @@ function Smes() {
     <>
       <PageHead
         eyebrow={`${site.name} admin`}
-        title="SMEs"
-        sub={`Every salon on ${site.name}: how long they've been with you, how many days they actually used it, and whether they've paid.`}
+        title="Businesses"
+        sub={`Every business on ${site.name}: how long they've been with you, how many days they actually used it, and whether they've paid.`}
         action={<input id="sme-search" className="headsearch" type="search" placeholder="Search name, owner, phone" value={q} onChange={(e) => setQ(e.target.value)} />}
       />
       <ErrorBox error={error} />
@@ -61,7 +61,7 @@ function Smes() {
           <table className="ctable">
             <thead>
               <tr>
-                <th>SME</th><th>With you since</th><th title="Days on which they used the app">Days used</th><th>Last used</th>
+                <th>Business</th><th>With you since</th><th title="Days on which they used the app">Days used</th><th>Last used</th>
                 <th className="num">Customers</th><th className="num" title="Quotes created in the last 30 days">Quotes (30d)</th><th>Usage</th><th>Payment</th>
               </tr>
             </thead>
@@ -91,7 +91,7 @@ function Smes() {
                   </td>
                 </tr>
               ))}
-              {!shown.length && <tr><td colSpan={8} className="empty">{rows.length ? "No SMEs match." : <>No SMEs yet. <Link href="/admin/invites">Create an invite code</Link> for your first one.</>}</td></tr>}
+              {!shown.length && <tr><td colSpan={8} className="empty">{rows.length ? "No businesses match." : <>No businesses yet. <Link href="/admin/invites">Create an invite code</Link> for your first one.</>}</td></tr>}
             </tbody>
           </table>
         </div>

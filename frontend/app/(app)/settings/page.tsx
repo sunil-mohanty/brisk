@@ -11,6 +11,7 @@ import { BUSINESS_TYPES, VOCAB } from "@/lib/vocab";
 import { Tip } from "@/components/Tips";
 import { site } from "@/lib/site";
 import { useWhatsApp } from "@/lib/whatsapp";
+import { words } from "@/lib/words";
 
 export default function SettingsPage() {
   const { business, setBusiness } = useSession();
@@ -19,6 +20,7 @@ export default function SettingsPage() {
     tagline: business.tagline ?? "", address: business.address ?? "", trn: business.trn ?? "", default_vat_rate: business.default_vat_rate, business_type: business.business_type ?? "unisex",
   });
   const [error, setError] = useState<string | null>(null);
+  const W = words(business.business_type);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
 
   async function save(e: React.FormEvent) {
@@ -28,7 +30,7 @@ export default function SettingsPage() {
       const body = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v === "" ? null : v]));
       body.name = f.name;
       setBusiness(await api.patch<Business>("/business", body));
-      toast("Salon profile saved");
+      toast(`${W.Business} profile saved`);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -36,12 +38,12 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHead eyebrow="Settings" title="Salon profile" sub="Clients see this on booking confirmations, quotes, their visit history and your link page." />
+      <PageHead eyebrow="Settings" title={`${W.Business} profile`} sub={`Clients see this on ${W.appointment} confirmations, quotes, their history and your link page.`} />
       <form className="card" onSubmit={save}>
         <ErrorBox error={error} />
         <div className="form" style={{ marginTop: error ? 12 : 0 }}>
-          <label className="full">Salon name<input id="b-name" required value={f.name} onChange={set("name")} /></label>
-          <label className="full">
+          <label className="full">{W.Business} name<input id="b-name" required value={f.name} onChange={set("name")} /></label>
+          {W.vertical === "salon" && <label className="full">
             Kind of salon
             <Tip id="set.type" order={1} text={`Sets the suggested services and words like Stylist or Barber across ${site.name}.`}>
             <select id="b-type" value={f.business_type} onChange={set("business_type")}>
@@ -49,8 +51,8 @@ export default function SettingsPage() {
             </select>
             </Tip>
             <span className="hint">{VOCAB[f.business_type as keyof typeof VOCAB]?.examples}</span>
-          </label>
-          <label className="full">Tagline<input id="b-tagline" value={f.tagline} onChange={set("tagline")} placeholder="What you do and where, e.g. Hair, nails & bridal · Al Barsha" /></label>
+          </label>}
+          <label className="full">Tagline<input id="b-tagline" value={f.tagline} onChange={set("tagline")} placeholder={W.vertical === "real_estate" ? "What you do and where, e.g. Sales & leasing · Dubai Marina" : "What you do and where, e.g. Hair, nails & bridal · Al Barsha"} /></label>
           <label>Phone<input id="b-phone" value={f.phone} onChange={set("phone")} inputMode="tel" /></label>
           <label>WhatsApp number<Tip id="set.wa" order={2} text="Every WhatsApp button your clients see opens a chat with this number."><input id="b-wa" value={f.whatsapp} onChange={set("whatsapp")} inputMode="tel" placeholder="Used for every WhatsApp button clients see" /></Tip></label>
           <label>Email<input id="b-email" type="email" value={f.email} onChange={set("email")} /></label>
@@ -161,9 +163,9 @@ function SocialPanel() {
 
   const logins = [
     { id: "meta" as const, title: "Facebook & Instagram", ready: st?.meta_ready, providers: ["facebook", "instagram"],
-      help: "Log in with the Facebook account that manages your salon's Page. Your Instagram must be a Business or Creator account linked to that Page." },
+      help: "Log in with the Facebook account that manages your business Page. Your Instagram must be a Business or Creator account linked to that Page." },
     { id: "google" as const, title: "YouTube", ready: st?.google_ready, providers: ["youtube"],
-      help: "Log in with the Google account that owns your salon's YouTube channel. Campaigns are posted as short videos (Shorts)." },
+      help: "Log in with the Google account that owns your business YouTube channel. Campaigns are posted as short videos (Shorts)." },
   ];
   return (
     <section className="panel" style={{ marginTop: 16 }} id="social">

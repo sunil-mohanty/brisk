@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { fmtDate, fmtDayLong, fmtTime, money, uaeDate } from "@/lib/format";
 import type { PublicQuote as PublicQuoteData } from "@/lib/types";
 import { duration } from "@/lib/vocab";
+import { words } from "@/lib/words";
 
 export function PublicQuote() {
   return <Suspense fallback={null}><QuoteView /></Suspense>;
@@ -66,7 +67,7 @@ function QuoteView() {
   const slotsPath = `/public/q/${token}/slots`;
 
   return (
-    <PubShell>
+    <PubShell vertical={q.business.vertical}>
       {preview && <div className="banner info">Preview. Your visit isn&apos;t counted, and the buttons are live.</div>}
       <PubHeader business={q.business} />
 
@@ -122,7 +123,7 @@ function QuoteView() {
       )}
       {open && step === "accept" && (
         <div className="pcard bookcard">
-          <h3 style={{ fontSize: 22 }}>Book your time <span className="opt">optional</span></h3>
+          <h3 style={{ fontSize: 22 }}>{words(q.business.business_type).bookTime} <span className="opt">optional</span></h3>
           <p className="kicker" style={{ marginTop: -4 }}>Free times for {duration(q.duration_min)}. Booked straight away if it&apos;s still free.</p>
           <SlotPicker slotsPath={slotsPath} openDays={q.open_days} value={pick} onChange={setPick} />
           <div className="pbtns" style={{ marginTop: 14 }}>

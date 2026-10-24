@@ -42,7 +42,7 @@ export default function SmeDetailPage() {
   return (
     <>
       <PageHead
-        eyebrow={<><Link href="/admin/smes">SMEs</Link> / {d.name}</>}
+        eyebrow={<><Link href="/admin/smes">Businesses</Link> / {d.name}</>}
         title={d.name}
         sub={`${d.owner_name ?? ""} · ${d.owner_email ?? ""}${d.phone ? ` · ${d.phone}` : ""}${d.came_from ? ` · came from ${d.came_from}` : ""}`}
         action={

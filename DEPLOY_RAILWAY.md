@@ -103,6 +103,12 @@ delivery ticks). Nothing changes until you add the WhatsApp variables (see below
 
 After this update the **link page is off for every salon** until you switch it on in **Admin → the salon → Features**.
 
+### Salons and real estate (this update)
+
+No new variables. Existing salons keep their look. New owners choose **Salon** or **Real estate** when they sign up;
+real estate accounts get the navy theme and broker words. To try it, run the seed again on Railway
+(`python -m app.seed` in the api service shell) to add the `broker@tressa.app` demo, or just sign up as Real estate.
+
 ## Posting campaigns to Facebook, Instagram and YouTube
 
 Each salon connects **its own** Facebook Page, Instagram and YouTube channel once (Settings → Social media), then
@@ -123,24 +129,34 @@ Until you do, Settings shows "Not available yet" and everything else keeps worki
 
 ### A. Meta app (Facebook + Instagram)
 
-1. **developers.facebook.com → My Apps → Create app.** Use case: **Other** → type **Business** → connect your Business portfolio.
-2. **Add product → Facebook Login for Business.** In its **Settings**, add this to **Valid OAuth Redirect URIs**:
-   `https://brisk-web-production.up.railway.app/api/social/meta/callback`
-   (use your own web domain; add both if you later move to a custom domain).
-3. **App settings → Basic:** fill in the Privacy Policy URL (`https://<web domain>/privacy`), Terms URL (`/terms`),
-   app icon and category. Copy **App ID** and **App secret**.
-4. Railway → **api** service → Variables:
+1. **developers.facebook.com → My Apps → Create app.** App name "Brisk", contact email.
+2. **Use cases:** tick **Manage everything on your Page**, and also **Manage messaging & content on Instagram**
+   (if it offers a choice, pick **API setup with Facebook login**). **Business:** choose your Business portfolio
+   (create one at business.facebook.com if you have none). Finish with **Create app**.
+3. **Dashboard → Customize** each use case and press **Add** next to:
+   Page use case: `pages_manage_posts`, `pages_read_engagement` (`pages_show_list`, `business_management` are already there).
+   Instagram use case: `instagram_basic`, `instagram_content_publish`.
+4. **Facebook Login for Business → Settings → Valid OAuth Redirect URIs:**
+   `https://brisk-web-production.up.railway.app/api/social/meta/callback` → **Check URI** → **Save changes**.
+5. **Facebook Login for Business → Configurations → + Create configuration:** name "Brisk connect",
+   token type **User access token**, expiration **Never**, assets **Pages** and **Instagram accounts**, permissions
+   the six above → **Create**. Copy the **Configuration ID**.
+6. **App settings → Basic:** app icon (1024×1024), category, Privacy Policy URL `https://<web domain>/privacy`,
+   Terms URL `/terms`, User data deletion → **Data deletion instructions URL** `https://<web domain>/privacy`.
+   **Save**, then copy **App ID** and **App secret** (Show).
+7. Railway → **api** service → Variables, then redeploy:
    ```
    META_APP_ID=<App ID>
    META_APP_SECRET=<App secret>
+   META_LOGIN_CONFIG_ID=<Configuration ID>
    ```
-5. **Testing (works straight away):** in **App roles → Roles**, add the Facebook accounts of salons you want to test with
-   as **Testers** (they accept the invite at developers.facebook.com). While the app is in Development mode, only
-   people with a role can connect.
-6. **For every salon (App Review):** **App Review → Permissions and features**, request:
-   `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `business_management`,
-   `instagram_basic`, `instagram_content_publish`. Meta asks for a short screen recording of the flow
-   (Settings → Connect → choose Page → Post to social) and **Business verification**. Then switch the app to **Live**.
+8. **Test now:** **App roles → Roles → Add people** as **Tester** (they accept at developers.facebook.com/requests).
+   In Development mode only people with a role can connect. Settings → Social media → Connect → tick the Page and its
+   Instagram → Post a campaign.
+9. **Open to all salons:** your salons' Pages belong to other businesses, so Meta treats you as a **Tech Provider**:
+   **Dashboard → Become a Tech Provider** and complete **Business verification** (trade licence). Then
+   **App Review → Edit → Submit for review** with a short screen recording of Connect → Post, and finally **Publish**.
+   Review usually takes a few days.
 
 Requirements for each salon:
 - a **Facebook Page** for the salon, and they must be an admin of it;
@@ -177,6 +193,7 @@ and Settings says "Reconnect".
 
 | What you see | Why / fix |
 |---|---|
+| Facebook says "Invalid Scopes" or "feature unavailable" | Set `META_LOGIN_CONFIG_ID` (step A5); new Meta apps need it. |
 | "Not available yet" in Settings | `META_APP_ID`/`META_APP_SECRET` or `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` not set on the **api** service. |
 | Facebook says "URL blocked" / Google says `redirect_uri_mismatch` | The redirect URI in step A2 / B4 doesn't exactly match your web domain. |
 | "No Facebook Page was shared" | On Meta's screen the owner didn't tick their Page. Press Reconnect and tick the Page and its Instagram. |

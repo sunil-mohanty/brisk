@@ -1,7 +1,7 @@
 """Platform admin: who signed up, who uses it, who has paid.
 
 Only emails listed in ADMIN_EMAILS can call these. Responses carry counts and
-dates about each SME, never their customers' names or phone numbers.
+dates about each business, never their customers' names or phone numbers.
 """
 
 from collections import defaultdict
@@ -348,7 +348,7 @@ def overview(db: Session = Depends(get_db)):
             gap = (today - _day(r.last_active)).days
             attention.append({"id": r.id, "name": r.name, "kind": r.health, "text": f"Not used for {gap} days"})
 
-    # Which ads / sites bring SMEs, and which of them go on to use it and pay
+    # Which ads / sites bring businesses, and which of them go on to use it and pay
     src = defaultdict(lambda: {"smes": 0, "active": 0, "paying": 0})
     by_id = {b.id: b for b in businesses}
     for r in rows:
@@ -402,7 +402,7 @@ def _detail(db: Session, b: Business) -> SmeDetail:
 def _biz(db: Session, sme_id: int) -> Business:
     b = db.get(Business, sme_id)
     if not b:
-        raise HTTPException(404, "SME not found")
+        raise HTTPException(404, "Business not found")
     return b
 
 
@@ -460,7 +460,7 @@ def reset_link(sme_id: int, db: Session = Depends(get_db)):
     b = _biz(db, sme_id)
     owner = db.scalar(select(User).where(User.business_id == b.id).order_by(User.id))
     if not owner:
-        raise HTTPException(404, "This SME has no user")
+        raise HTTPException(404, "This business has no user")
     s = get_settings()
     link = f"{s.app_url.rstrip('/')}/reset-password?token={create_reset_token(owner)}"
     return {"link": link, "email": owner.email, "expires_minutes": s.password_reset_minutes}

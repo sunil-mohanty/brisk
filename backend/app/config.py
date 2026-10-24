@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     meta_app_secret: str | None = None
     meta_graph_url: str = "https://graph.facebook.com/v21.0"
     meta_dialog_url: str = "https://www.facebook.com/v21.0/dialog/oauth"
+    # Facebook Login for Business: the Configuration ID (App Dashboard → Facebook Login for Business → Configurations).
+    # New Meta apps need it; when set, the permissions come from the configuration instead of a scope list.
+    meta_login_config_id: str | None = None
     # Posting campaign videos to each salon's YouTube channel (one Google Cloud project for the platform).
     google_client_id: str | None = None
     google_client_secret: str | None = None

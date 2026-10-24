@@ -7,10 +7,11 @@ import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui";
 import { api, auth } from "@/lib/api";
 import type { AuthResponse } from "@/lib/types";
+import { BriskMark } from "@/components/Logo";
 
 const TABS = [
   ["/admin", "Overview"],
-  ["/admin/smes", "SMEs"],
+  ["/admin/smes", "Businesses"],
   ["/admin/invites", "Invite codes"],
 ] as const;
 
@@ -31,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="admin">
       <header className="adminbar">
-        <Link href="/admin" className="brand"><i className="mark" aria-hidden="true" /><span>{site.name}</span> <span className="adminbadge">Admin</span></Link>
+        <Link href="/admin" className="brand"><BriskMark size={30} tile="var(--fg)" /><span>{site.name}</span> <span className="adminbadge">Admin</span></Link>
         <nav className="admintabs" aria-label="Admin">
           {TABS.map(([href, label]) => (
             <Link key={href} href={href} aria-current={(href === "/admin" ? path === href : path.startsWith(href)) ? "page" : undefined}>{label}</Link>

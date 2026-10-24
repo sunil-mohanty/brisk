@@ -13,7 +13,7 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   const s = await fetchService(token);
   const next = s?.next_service_date ? new Date(s.next_service_date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
   return new ImageResponse(
-    <OgCard initials={s?.business.initials ?? "S"} name={s?.business.name ?? "Salon"} kicker="Your visit" big={s?.service ?? ""}
+    <OgCard vertical={s?.business.vertical} initials={s?.business.initials ?? "S"} name={s?.business.name ?? "Business"} kicker={s?.business.vertical === "real_estate" ? "Your deal" : "Your visit"} big={s?.service ?? ""}
       cta={next ? `Next visit around ${next}` : "Tap to see your visits"} />,
     { ...size, fonts: await ogFonts() },
   );

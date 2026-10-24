@@ -40,13 +40,13 @@ export default function InvitesPage() {
 
   return (
     <>
-      <PageHead eyebrow={`${site.name} admin`} title="Invite codes" sub="Make one code per salon. It works once, sets their trial and plan, and shows you which deal each sign-up came from." />
+      <PageHead eyebrow={`${site.name} admin`} title="Invite codes" sub="Make one code per business. It works once, sets their trial and plan, and shows you which deal each sign-up came from." />
       <div className="detail">
         <form className="card" onSubmit={create}>
           <h2 className="cardtitle">New invite code</h2>
           <ErrorBox error={error} />
           <div className="form" style={{ marginTop: 8 }}>
-            <label className="full">For which SME<input id="inv-label" required value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} placeholder="Shreeu's Cafe, Karama" /></label>
+            <label className="full">For which business<input id="inv-label" required value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} placeholder="Shreeu's Cafe, Karama" /></label>
             <label>Free trial (days)<input id="inv-trial" type="number" min="0" max="365" value={f.trial_days} onChange={(e) => setF({ ...f, trial_days: e.target.value })} /></label>
             <label>Plan<input id="inv-plan" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })} /></label>
             <label>Monthly price (AED)<input id="inv-amount" type="number" min="0" step="1" value={f.plan_amount} onChange={(e) => setF({ ...f, plan_amount: e.target.value })} placeholder="49" /></label>
@@ -96,7 +96,7 @@ export default function InvitesPage() {
                   </td>
                 </tr>
               ))}
-              {!rows.length && <tr><td colSpan={6} className="empty">No invite codes yet. Create one above for your first SME.</td></tr>}
+              {!rows.length && <tr><td colSpan={6} className="empty">No invite codes yet. Create one above for your first business.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -11,9 +11,11 @@ import { api } from "@/lib/api";
 import { Icon } from "@/components/icons";
 import { daysUntil, fmtDate, fmtDay, fmtTime, money, todayUAE } from "@/lib/format";
 import type { Dashboard, Lead, Outbound, ReminderOut, ServiceRecord } from "@/lib/types";
+import { words, type Words } from "@/lib/words";
 
 export default function TodayPage() {
   const { business, user } = useSession();
+  const W = words(business.business_type);
   const [d, setD] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetState>(null);
@@ -33,10 +35,10 @@ export default function TodayPage() {
       <PageHead
         title="Today"
         eyebrow={fmtDay(todayUAE())}
-        sub={`${hello}, ${user.name.split(" ")[0]}. ${live.length ? `${live.length} client${live.length === 1 ? "" : "s"} booked today, ${money(takings, cur)} in the diary.` : "No one booked in yet today."}`}
+        sub={`${hello}, ${user.name.split(" ")[0]}. ${live.length ? (W.vertical === "real_estate" ? `${live.length} viewing${live.length === 1 ? "" : "s"} today.` : `${live.length} client${live.length === 1 ? "" : "s"} booked today, ${money(takings, cur)} in the diary.`) : `No ${W.appointments} yet today.`}`}
         action={<>
           <Link className="btn" href="/quotes/new">{Icon.quotes()}New Quote</Link>
-          <Tip id="dash.book" order={1} text="Book a client in from here, or from the Appointments calendar."><button className="btn primary" onClick={() => setSheet({ kind: "new" })}>{Icon.appointments()}New Booking</button></Tip>
+          <Tip id="dash.book" order={1} text={`Book a client in from here, or from the ${W.Appointments} calendar.`}><button className="btn primary" onClick={() => setSheet({ kind: "new" })}>{Icon.appointments()}{W.vertical === "real_estate" ? "New Viewing" : "New Booking"}</button></Tip>
         </>}
       />
       <Checklist setup={d.setup} />
@@ -46,7 +48,7 @@ export default function TodayPage() {
         {business.link_page_enabled
           ? <Link href="/link" className="kpi kpilink"><span>Link page visits</span><strong>{d.link_views_7d}</strong><em>{d.link_taps_7d} taps this week</em></Link>
           : <Link href="/quotes" className="kpi kpilink"><span>Awaiting booking</span><strong>{d.awaiting_booking.length}</strong><em>accepted quotes to book in</em></Link>}
-        <Link href="/services?due=1" className="kpi kpilink"><span>Due to rebook</span><strong>{d.due_soon}</strong><em>in the next 30 days</em></Link>
+        <Link href="/services?due=1" className="kpi kpilink"><span>{W.rebook}</span><strong>{d.due_soon}</strong><em>in the next 30 days</em></Link>
       </div>
       {(d.to_send.length > 0 || d.awaiting_booking.length > 0 || d.low_stock > 0) && (
         <div className="grid2" style={{ marginBottom: 16 }}>
@@ -74,7 +76,7 @@ export default function TodayPage() {
       )}
       <div className="grid2">
         <section className="panel">
-          <h2>Today's appointments <Link href="/appointments">Open diary</Link></h2>
+          <h2>Today's {W.appointments} <Link href="/appointments">Open {W.vertical === "real_estate" ? "calendar" : "diary"}</Link></h2>
           {d.today.length ? (
             <div className="today">
               {d.today.map((a) => (
@@ -90,7 +92,7 @@ export default function TodayPage() {
           ) : <div className="empty">A quiet day so far. <button className="linkbtn" style={{ margin: 0, padding: 0 }} onClick={() => setSheet({ kind: "new" })}>Book someone in</button></div>}
         </section>
         <NewEnquiries />
-        <DueToRebook rows={d.due_services} onSent={load} />
+        <DueToRebook rows={d.due_services} onSent={load} W={W} />
         <section className="panel">
           <h2>Recent quotes <Link href="/quotes">All quotes</Link></h2>
           <div className="list">
@@ -132,7 +134,7 @@ function NewEnquiries() {
   );
 }
 
-function DueToRebook({ rows, onSent }: { rows: ServiceRecord[]; onSent: () => void }) {
+function DueToRebook({ rows, onSent, W }: { rows: ServiceRecord[]; onSent: () => void; W: Words }) {
   async function remind(s: ServiceRecord) {
     const w = window.open("about:blank", "_blank");
     try {
@@ -144,7 +146,7 @@ function DueToRebook({ rows, onSent }: { rows: ServiceRecord[]; onSent: () => vo
   }
   return (
     <section className="panel">
-      <h2>Due to rebook <Link href="/services?due=1">Visits</Link></h2>
+      <h2>{W.rebook} <Link href="/services?due=1">{W.Visits}</Link></h2>
       <div className="list">
         {rows.length ? rows.map((s) => {
           const days = daysUntil(s.next_service_date!);
@@ -160,7 +162,7 @@ function DueToRebook({ rows, onSent }: { rows: ServiceRecord[]; onSent: () => vo
               </div>
             </div>
           );
-        }) : <div className="empty">Nobody due in the next 30 days. Finished visits set this up for you.</div>}
+        }) : <div className="empty">Nobody due in the next 30 days. Finished {W.visits} set this up for you.</div>}
       </div>
     </section>
   );

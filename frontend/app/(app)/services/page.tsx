@@ -10,6 +10,7 @@ import { daysUntil, fmtDate, money } from "@/lib/format";
 import type { ReminderOut, ServiceRecord } from "@/lib/types";
 import { vocab } from "@/lib/vocab";
 import { Tip } from "@/components/Tips";
+import { words } from "@/lib/words";
 
 export default function VisitsPage() {
   return <Suspense fallback={<Loading />}><Visits /></Suspense>;
@@ -17,6 +18,7 @@ export default function VisitsPage() {
 
 function Visits() {
   const { business } = useSession();
+  const W = words(business.business_type);
   const v = vocab(business.business_type);
   const [rows, setRows] = useState<ServiceRecord[] | null>(null);
   const [dueOnly, setDueOnly] = useState(useSearchParams().get("due") === "1");
@@ -49,13 +51,13 @@ function Visits() {
     <>
       <PageHead
         eyebrow="History & rebooking"
-        title="Visits"
-        sub="Every finished appointment, with the client's own history link. When someone is due back, invite them in one tap."
+        title={W.Visits}
+        sub={W.vertical === "real_estate" ? "Every closed deal, with the client's own history link. When a tenancy or follow-up is due, message them in one tap." : "Every finished appointment, with the client's own history link. When someone is due back, invite them in one tap."}
         action={<Tip id="s.new" order={1} text="Visits are saved for you when you finish an appointment. Use this for a walk-in you didn't book in the diary."><Link className="btn" href="/services/new">+ Record a walk-in</Link></Tip>}
       />
       <ErrorBox error={error} />
       <div className="filters">
-        <button className="chip" aria-pressed={!dueOnly} onClick={() => setDueOnly(false)}>All visits</button>
+        <button className="chip" aria-pressed={!dueOnly} onClick={() => setDueOnly(false)}>All {W.visits}</button>
         <Tip id="s.due" order={2} text="Clients due back soon. Invite each one on WhatsApp in one tap."><button className="chip" aria-pressed={dueOnly} onClick={() => setDueOnly(true)}>Due to rebook</button></Tip>
       </div>
       {!rows ? <Loading /> : (
@@ -87,7 +89,7 @@ function Visits() {
                   </tr>
                 );
               })}
-              {!rows.length && <tr><td colSpan={7} className="empty">{dueOnly ? "Nobody is due back in the next 30 days." : <>No visits yet. Finish an appointment in the <Link href="/appointments">diary</Link> and it appears here.</>}</td></tr>}
+              {!rows.length && <tr><td colSpan={7} className="empty">{dueOnly ? "Nobody is due back in the next 30 days." : <>No {W.visits} yet. Finish {W.vertical === "real_estate" ? "a viewing" : "an appointment"} in the <Link href="/appointments">{W.vertical === "real_estate" ? "calendar" : "diary"}</Link> and it appears here.</>}</td></tr>}
             </tbody>
           </table>
         </div>

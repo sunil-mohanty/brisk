@@ -11,6 +11,7 @@ import type { CatalogItem, CustomerRef, Lead, Quote } from "@/lib/types";
 import Link from "next/link";
 import { vocab } from "@/lib/vocab";
 import { Tip } from "@/components/Tips";
+import { words } from "@/lib/words";
 
 interface Row { description: string; quantity: string; unit_price: string }
 const blank: Row = { description: "", quantity: "1", unit_price: "" };
@@ -25,6 +26,7 @@ function QuoteForm() {
   const leadId = params.get("lead");
   const editId = params.get("edit");
   const { business } = useSession();
+  const W = words(business.business_type);
 
   const [lead, setLead] = useState<Lead | null>(null);
   const [ref, setRef] = useState<CustomerRef>({});
@@ -134,7 +136,7 @@ function QuoteForm() {
       <PageHead
         eyebrow="Quote"
         title={editId ? "Edit quote" : "New quote"}
-        sub={lead ? `For ${lead.customer.name}'s enquiry via ${lead.source}.` : "Client, services, price, VAT. You'll get a link to send on WhatsApp."}
+        sub={lead ? `For ${lead.customer.name}'s enquiry via ${lead.source}.` : `Client, ${W.services}, price, VAT. You'll get a link to send on WhatsApp.`}
       />
       <div className="card">
         <ErrorBox error={error} />
@@ -155,7 +157,7 @@ function QuoteForm() {
                 </div>
               </div>
             )}
-            <Tip id="qn.items" order={2} text="One line per service: what it is, how many, and the price each. VAT and the total are worked out for you below.">
+            <Tip id="qn.items" order={2} text={`One line per ${W.service}: what it is, how many, and the price each. VAT and the total are worked out for you below.`}>
             <div className="items">
               <div className="item itemhead" aria-hidden="true"><span>Service</span><span>Qty</span><span>Price each ({cur})</span><span /></div>
               {rows.map((r, i) => (
@@ -170,11 +172,11 @@ function QuoteForm() {
             </Tip>
             <datalist id="pricelist">{catalog.map((c) => <option key={c.id} value={c.name} />)}</datalist>
             <div className="itemfoot">
-              <button type="button" className="btn sm" onClick={() => setRows([...rows, { ...blank }])}>+ Add service</button>
+              <button type="button" className="btn sm" onClick={() => setRows([...rows, { ...blank }])}>+ Add {W.service}</button>
               {newLines.length > 0 && (
                 <label className="check">
                   <input type="checkbox" checked={saveNew} onChange={(e) => setSaveNew(e.target.checked)} />
-                  Save {newLines.length === 1 ? "this service" : `these ${newLines.length} services`} to my menu
+                  Save {newLines.length === 1 ? `this ${W.service}` : `these ${newLines.length} ${W.services}`} to my {W.vertical === "real_estate" ? "listings" : "menu"}
                 </label>
               )}
             </div>

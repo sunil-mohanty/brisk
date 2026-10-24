@@ -112,10 +112,12 @@ def read_state(state: str, login: str) -> int:
 def login_url(login: str, state: str) -> str:
     s = get_settings()
     if login == "meta":
-        return s.meta_dialog_url + "?" + urlencode({
-            "client_id": s.meta_app_id, "redirect_uri": redirect_uri("meta"), "state": state,
-            "scope": ",".join(META_SCOPES), "response_type": "code",
-        })
+        q = {"client_id": s.meta_app_id, "redirect_uri": redirect_uri("meta"), "state": state, "response_type": "code"}
+        if s.meta_login_config_id:
+            q["config_id"] = s.meta_login_config_id  # Facebook Login for Business
+        else:
+            q["scope"] = ",".join(META_SCOPES)
+        return s.meta_dialog_url + "?" + urlencode(q)
     return s.google_auth_url + "?" + urlencode({
         "client_id": s.google_client_id, "redirect_uri": redirect_uri("google"), "state": state,
         "scope": " ".join(GOOGLE_SCOPES), "response_type": "code", "access_type": "offline",
@@ -225,16 +227,22 @@ def default_caption(c: Campaign, url: str) -> str:
     tail = f"{price}" + (f" (was {creative._money(t.subtotal * (1 + c.vat_rate / 100), b.currency)})" if t.discount > 0 else "")
     if c.valid_until:
         tail += f" · offer ends {c.valid_until:%d %b}".replace(" 0", " ")
-    lines += ["", tail, "", f"Accept and book your time: {url}"]
+    re_ = creative.is_real_estate(c)
+    lines += ["", tail, "", f"{CTA[re_]}: {url}"]
     tag = "".join(ch for ch in b.name.title() if ch.isalnum())
-    lines += ["", f"#{tag} #salon #dubai #beauty" if tag else "#salon #dubai #beauty"]
+    tags = "#dubairealestate #dubaiproperty #uae" if re_ else "#salon #dubai #beauty"
+    lines += ["", f"#{tag} {tags}" if tag else tags]
     return "\n".join(lines)
+
+
+CTA = {False: "Accept and book your time", True: "Book a viewing"}
 
 
 def caption_for(provider: str, caption: str, url: str) -> str:
     if provider == "instagram":
         # Instagram doesn't make links clickable: point to the QR code in the picture instead.
-        caption = caption.replace(f"Accept and book your time: {url}", "Scan the code in the picture to accept and book your time 📲")
+        for cta in CTA.values():
+            caption = caption.replace(f"{cta}: {url}", "Scan the code in the picture to accept and book your time 📲")
         if "Scan the code" not in caption:
             caption += "\n\nScan the code in the picture to accept and book your time 📲"
     return caption[:2200]

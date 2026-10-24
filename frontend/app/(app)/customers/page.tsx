@@ -8,12 +8,14 @@ import { api } from "@/lib/api";
 import { money } from "@/lib/format";
 import type { CustomerSummary } from "@/lib/types";
 import { Tip } from "@/components/Tips";
+import { words } from "@/lib/words";
 
 const STAGE_PILL = { Acquire: "new", Quote: "quoted", Serve: "accepted", Retain: "won" } as const;
 const STAGE_LABEL = { Acquire: "Enquired", Quote: "Quoted", Serve: "Visited", Retain: "Regular" } as const;
 
 export default function CustomersPage() {
   const { business } = useSession();
+  const W = words(business.business_type);
   const [rows, setRows] = useState<CustomerSummary[] | null>(null);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export default function CustomersPage() {
       <PageHead
         eyebrow="Client list"
         title="Clients"
-        sub="One record per client, with their enquiries, quotes and visits. Same mobile number, same record."
+        sub={`One record per client, with their enquiries, quotes and ${W.visits}. Same mobile number, same record.`}
         action={
           <div className="acts">
             <input id="customer-search" className="headsearch" type="search" placeholder="Search name or mobile" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -42,7 +44,7 @@ export default function CustomersPage() {
       {!rows ? <Loading /> : (
         <div className="tablewrap">
           <table className="ctable">
-            <thead><tr><th>Client</th><th>Found you via</th><th>Enquiries</th><th>Quotes</th><th>Visits</th><th className="num">Lifetime value</th><th>Stage</th></tr></thead>
+            <thead><tr><th>Client</th><th>Found you via</th><th>Enquiries</th><th>Quotes</th><th>{W.Visits}</th><th className="num">Lifetime value</th><th>Stage</th></tr></thead>
             <tbody>
               {rows.map((c) => (
                 <tr key={c.id}>
@@ -50,7 +52,7 @@ export default function CustomersPage() {
                   <td className="c-stat" data-label="From">{c.first_source ?? (c.notes?.startsWith("Imported") ? "Imported" : "Manual")}</td>
                   <td className="mono c-stat" data-label="Leads">{c.leads}</td>
                   <td className="mono c-stat" data-label="Quotes">{c.quotes}</td>
-                  <td className="mono c-stat" data-label="Services">{c.services}</td>
+                  <td className="mono c-stat" data-label={W.Visits}>{c.services}</td>
                   <td className="num c-end">{money(c.lifetime_value, business.currency)}</td>
                   <td className="c-stat c-first"><Pill status={STAGE_PILL[c.stage]} label={STAGE_LABEL[c.stage]} /></td>
                 </tr>

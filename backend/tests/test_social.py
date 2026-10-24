@@ -142,6 +142,14 @@ def test_connect_and_post_everywhere(client, apis):
     assert f"https://app.test/c/{c['token']}" in yt["snippet"]["description"] and calls["session1"]["bytes"] == 2048
 
 
+def test_login_for_business_uses_configuration(client, apis, monkeypatch):
+    monkeypatch.setattr(get_settings(), "meta_login_config_id", "987654")
+    h = signup(client)
+    url, r = _connect(client, h, "meta")
+    q = parse_qs(urlparse(url).query)
+    assert q["config_id"] == ["987654"] and "scope" not in q and "social=connected" in r.headers["location"]
+
+
 def test_choose_other_page_and_custom_caption(client, apis):
     h = signup(client)
     _connect(client, h, "meta")

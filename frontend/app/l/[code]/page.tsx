@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { addDays, fmtDay, todayUAE } from "@/lib/format";
 import type { PublicLanding } from "@/lib/types";
 import { TIME_SLOTS } from "@/lib/vocab";
+import { words } from "@/lib/words";
 
 /** Where a printed QR code (counter, mirror, flyer) sends people who don't go straight to WhatsApp. */
 export default function LandingPage() {
@@ -49,7 +50,7 @@ export default function LandingPage() {
   if (!p) return <PubShell><small>Loading…</small></PubShell>;
 
   return (
-    <PubShell>
+    <PubShell vertical={p.business.vertical}>
       <PubHeader business={p.business} />
       <div className="pbtns">
         {p.business.whatsapp_url && <button className="btn wa" onClick={() => go("whatsapp")}>Message us on WhatsApp</button>}
@@ -60,7 +61,7 @@ export default function LandingPage() {
           <div className="banner ok">Thanks, {f.name.split(" ")[0]}. {p.business.name} will message you to confirm a time.</div>
         ) : (
           <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 24 }}>Request an appointment</h3>
+            <h3 style={{ margin: 0, fontSize: 24 }}>{words(p.business.business_type).bookCta}</h3>
             {error && <div className="banner bad">{error}</div>}
             {p.menu.length > 0 && (
               <div className="chips-inline">

@@ -10,21 +10,25 @@ import { api, auth } from "@/lib/api";
 import { site } from "@/lib/site";
 import { cameFrom, rememberSource, trackSignup } from "@/lib/track";
 import type { AuthResponse, BusinessType } from "@/lib/types";
-import { BUSINESS_TYPES, VOCAB } from "@/lib/vocab";
+import { BUSINESS_TYPES } from "@/lib/vocab";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
   const params = useSearchParams();
   const codeFromLink = params.get("code") ?? "";
-  const typeFromLink = params.get("type") as BusinessType | null;
+  const typeFromLink = params.get("type");
+  // ?type=salon, ?type=real_estate, or a kind of salon (?type=gents) from older links and ads
+  const kindFromLink: "" | "salon" | "real_estate" = typeFromLink === "real_estate" ? "real_estate"
+    : typeFromLink === "salon" || BUSINESS_TYPES.includes(typeFromLink as BusinessType) ? "salon" : "";
   const [f, setF] = useState({
     business_name: "", name: "", email: params.get("email") ?? "", password: "", phone: "", invite_code: codeFromLink,
-    business_type: typeFromLink && BUSINESS_TYPES.includes(typeFromLink) ? typeFromLink : ("" as BusinessType | ""),
+    kind: kindFromLink,
   });
   const [showCode, setShowCode] = useState(!!codeFromLink);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const re = f.kind === "real_estate";
 
   useEffect(() => { rememberSource(); }, []);
 
@@ -35,7 +39,12 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     try {
       const body = mode === "login"
         ? { email: f.email, password: f.password }
-        : { ...f, phone: f.phone || null, invite_code: f.invite_code.trim() || null, business_type: f.business_type || "unisex", ...cameFrom() };
+        : {
+            business_name: f.business_name, name: f.name, email: f.email, password: f.password, phone: f.phone || null,
+            invite_code: f.invite_code.trim() || null, ...cameFrom(),
+            business_type: re ? "real_estate" : BUSINESS_TYPES.includes(typeFromLink as BusinessType) ? typeFromLink : "unisex",
+          };
+      if (mode === "signup" && !f.kind) throw new Error("Select your business: Salon or Real estate.");
       const res = await api.post<AuthResponse>(mode === "login" ? "/auth/login" : "/auth/signup", body);
       auth.set(res.token);
       if (mode === "signup") trackSignup();
@@ -57,17 +66,22 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         <ErrorBox error={error} />
         {mode === "signup" && (
           <>
-            <label>Salon name<input id="business_name" required value={f.business_name} onChange={set("business_name")} placeholder="e.g. Layla Beauty Lounge" autoComplete="organization" /></label>
-            <label>
-              What kind of salon?
-              <select id="business_type" required value={f.business_type} onChange={set("business_type")}>
-                <option value="" disabled>Choose one…</option>
-                {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{VOCAB[t].label}</option>)}
-              </select>
-              {f.business_type && <span className="hint">{VOCAB[f.business_type].examples}</span>}
-            </label>
+            <fieldset className="bizpick">
+              <legend>Select your business</legend>
+              <div className="bizpick-row" role="radiogroup">
+                <label>
+                  <input type="radio" name="kind" value="salon" required checked={f.kind === "salon"} onChange={() => setF({ ...f, kind: "salon" })} />
+                  <span><b>Salon</b><small>Hair, beauty, barber, spa, nails</small></span>
+                </label>
+                <label>
+                  <input type="radio" name="kind" value="real_estate" checked={f.kind === "real_estate"} onChange={() => setF({ ...f, kind: "real_estate" })} />
+                  <span><b>Real estate</b><small>Brokers, agencies, leasing</small></span>
+                </label>
+              </div>
+            </fieldset>
+            <label>{re ? "Agency or business name" : "Business name"}<input id="business_name" required value={f.business_name} onChange={set("business_name")} placeholder={re ? "e.g. Marina Key Properties" : "e.g. Layla Beauty Lounge"} autoComplete="organization" /></label>
             <label>Your name<input id="name" required value={f.name} onChange={set("name")} autoComplete="name" /></label>
-            <label>Salon WhatsApp number<input id="phone" value={f.phone} onChange={set("phone")} placeholder="050 123 4567" inputMode="tel" autoComplete="tel" /></label>
+            <label>Business WhatsApp number<input id="phone" value={f.phone} onChange={set("phone")} placeholder="050 123 4567" inputMode="tel" autoComplete="tel" /></label>
           </>
         )}
         <label>Email<input id="email" type="email" required value={f.email} onChange={set("email")} autoComplete="email" /></label>

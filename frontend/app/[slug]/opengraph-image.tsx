@@ -5,7 +5,7 @@ import { fetchLinkPage } from "@/lib/server";
 export const runtime = "nodejs";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Salon page";
+export const alt = "Business page";
 
 const THEMES: Record<string, { bg: string; card: string; ink: string; ac: string; soft: string }> = {
   clay: { bg: OG.cream, card: OG.paper, ink: OG.cocoa, ac: OG.clay, soft: OG.muted },
@@ -13,6 +13,7 @@ const THEMES: Record<string, { bg: string; card: string; ink: string; ac: string
   rose: { bg: "#f5e5e1", card: "#fdf5f3", ink: "#3a1f24", ac: "#a8505f", soft: "#8a6268" },
   sage: { bg: "#e8eadf", card: "#f6f7f0", ink: "#23281b", ac: "#56663f", soft: "#66705a" },
   noir: { bg: "#1d1714", card: "#29211c", ink: "#f4e9df", ac: "#d9946a", soft: "#b4a293" },
+  navy: { bg: "#eef0f3", card: "#fafbfc", ink: "#1b2029", ac: "#1f3a5f", soft: "#616a7b" },
 };
 
 // Link preview: the mirror monogram, salon name and a few menu lines, centred for square crops.

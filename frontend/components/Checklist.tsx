@@ -3,20 +3,28 @@
 import Link from "next/link";
 import { useSession } from "@/components/session";
 import { api } from "@/lib/api";
+import { words, type Words } from "@/lib/words";
 import { fmtDate } from "@/lib/format";
 import { helpLink, site } from "@/lib/site";
 import type { Business, Dashboard } from "@/lib/types";
 
-const STEPS: { key: keyof Dashboard["setup"]; title: string; why: string; href: string; cta: string }[] = [
+const steps = (W: Words): { key: keyof Dashboard["setup"]; title: string; why: string; href: string; cta: string }[] => W.vertical === "real_estate" ? [
+  { key: "profile", title: "Add your agency details", why: "Your WhatsApp number and office show on every viewing confirmation and quote.", href: "/settings", cta: "Add details" },
+  { key: "menu", title: "Add your listings", why: "Properties and services with prices and viewing times. Tap them when booking a viewing or writing a quote.", href: "/menu", cta: "Add listings" },
+  { key: "link", title: "Set up your link page", why: "One link for your Instagram bio and ads. Clients see your listings and book a viewing.", href: "/link", cta: "Set up" },
+  { key: "booked", title: "Book your first viewing", why: "Send the confirmation on WhatsApp in one tap. Record the deal and we'll remind you to follow up.", href: "/appointments?new=1", cta: "Book" },
+] : [
   { key: "profile", title: "Add your salon details", why: "Your WhatsApp number and area show on every booking confirmation and quote.", href: "/settings", cta: "Add details" },
   { key: "menu", title: "Add your service menu", why: "Prices and times for what you offer. Tap them when booking, and clients see them on your page.", href: "/menu", cta: "Add services" },
   { key: "link", title: "Set up your link page", why: "One link for your Instagram and TikTok bio. Clients see your menu and request a booking.", href: "/link", cta: "Set up" },
   { key: "booked", title: "Book your first client", why: "Send the confirmation on WhatsApp in one tap. Finish the visit and we'll remind you to rebook.", href: "/appointments?new=1", cta: "Book" },
 ];
 
-/** Getting-started checklist for new salons. Disappears when done or hidden. */
+/** Getting-started checklist for new businesses. Disappears when done or hidden. */
 export function Checklist({ setup }: { setup: Dashboard["setup"] }) {
   const { business, setBusiness } = useSession();
+  const W = words(business.business_type);
+  const STEPS = steps(W);
   const done = STEPS.filter((s) => setup[s.key]).length;
   if (business.checklist_hidden || done === STEPS.length) return null;
   const next = STEPS.find((s) => !setup[s.key]);
@@ -34,7 +42,7 @@ export function Checklist({ setup }: { setup: Dashboard["setup"] }) {
     <section className="panel checklist" aria-label="Getting started">
       <div className="ck-head">
         <div>
-          <h2>Get your salon set up <span className="muted small">{done} of {STEPS.length} done</span></h2>
+          <h2>Get your {W.business} set up <span className="muted small">{done} of {STEPS.length} done</span></h2>
           {business.trial_ends_at && <p className="muted small">Your free trial runs until {fmtDate(business.trial_ends_at)}.</p>}
         </div>
         <button className="btn sm" onClick={hide}>Hide</button>

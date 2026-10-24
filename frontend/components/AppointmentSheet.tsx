@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CustomerPicker } from "@/components/CustomerPicker";
 import { Sheet } from "@/components/Sheet";
 import { useSession } from "@/components/session";
+import { words } from "@/lib/words";
 import { copyText, ErrorBox, Pill, toast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { addDays, atUAE, fmtDayLong, fmtTime, money, todayUAE, uaeDate, uaeTime } from "@/lib/format";
@@ -59,6 +60,7 @@ function useTeamAndMenu() {
 function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt?: Appointment; onClose: () => void; onSaved: (a?: Appointment) => void }) {
   const { business } = useSession();
   const v = vocab(business.business_type);
+  const W = words(business.business_type);
   const { team, menu } = useTeamAndMenu();
   const cur = business.currency;
   const editing = !!appt;
@@ -119,7 +121,7 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
   }, [menu]);
 
   async function save(force = false) {
-    if (!f.service.trim()) return setError("Pick a service from the menu or type one.");
+    if (!f.service.trim()) return setError(`Pick a ${W.service} from the list or type one.`);
     if (!f.date || !f.time) return setError("Choose a day and time.");
     setBusy(true);
     setError(null);
@@ -141,7 +143,7 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
             ...body,
             ...(preset?.leadId ? { lead_id: preset.leadId } : preset?.quoteId ? { quote_id: preset.quoteId } : ref),
           });
-      toast(editing ? "Appointment moved" : `Booked: ${a.customer.name}, ${fmtTime(a.starts_at)}`);
+      toast(editing ? `${W.Appointment} moved` : `Booked: ${a.customer.name}, ${fmtTime(a.starts_at)}`);
       onSaved(a);
     } catch (e) {
       if (e instanceof ApiError && e.code === "clash") setClash(e.message);
@@ -153,8 +155,8 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
   const locked = !!preset?.leadId || !!preset?.quoteId || editing;
   return (
     <>
-      <h2>{editing ? "Change appointment" : preset?.title ?? "Book an appointment"}</h2>
-      <p className="intro">{editing ? `${appt!.customer.name} · ${appt!.service}` : "Client, service, time and who's doing it. You can send the confirmation on WhatsApp next."}</p>
+      <h2>{editing ? `Change ${W.appointment}` : preset?.title ?? `Book ${W.vertical === "real_estate" ? "a viewing" : "an appointment"}`}</h2>
+      <p className="intro">{editing ? `${appt!.customer.name} · ${appt!.service}` : `Client, ${W.service}, time and ${W.vertical === "real_estate" ? "which agent" : "who's doing it"}. You can send the confirmation on WhatsApp next.`}</p>
       <ErrorBox error={error} />
       <div className="form" style={{ marginTop: error ? 12 : 0 }}>
         {!editing && <CustomerPicker value={preset?.customerId} onChange={setRef} locked={locked} />}
@@ -172,7 +174,7 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
             ))}
           </div>
         )}
-        <label className="full">Service<input id="ap-service" value={f.service} onChange={(e) => set("service", e.target.value)} placeholder={v.itemPlaceholder} maxLength={300} /></label>
+        <label className="full">{W.Service}<input id="ap-service" value={f.service} onChange={(e) => set("service", e.target.value)} placeholder={v.itemPlaceholder} maxLength={300} /></label>
         <label>Day<input id="ap-date" type="date" value={f.date} min={editing ? undefined : addDays(todayUAE(), -1)} onChange={(e) => set("date", e.target.value)} /></label>
         <label>Time<input id="ap-time" type="time" step={300} value={f.time} onChange={(e) => set("time", e.target.value)} /></label>
         <div className="full">
@@ -199,12 +201,12 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
         <div>
           <label>Where</label>
           <div className="seg" style={{ marginTop: 5 }}>
-            <button type="button" aria-pressed={f.location === "salon"} onClick={() => set("location", "salon")}>At the salon</button>
-            <button type="button" aria-pressed={f.location === "home"} onClick={() => set("location", "home")}>Home visit</button>
+            <button type="button" aria-pressed={f.location === "salon"} onClick={() => set("location", "salon")}>{W.vertical === "real_estate" ? "At our office" : "At the salon"}</button>
+            <button type="button" aria-pressed={f.location === "home"} onClick={() => set("location", "home")}>{W.vertical === "real_estate" ? "At the property" : "Home visit"}</button>
           </div>
         </div>
-        {f.location === "home" && <label className="full">Client's address<input id="ap-address" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder={v.refPlaceholder} /></label>}
-        <label className="full">Notes <textarea id="ap-notes" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Anything to prepare, allergies to products, patch test done…" /></label>
+        {f.location === "home" && <label className="full">{W.vertical === "real_estate" ? "Property address / unit" : "Client's address"}<input id="ap-address" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder={v.refPlaceholder} /></label>}
+        <label className="full">Notes <textarea id="ap-notes" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={W.vertical === "real_estate" ? "Keys with security, parking, documents to bring…" : "Anything to prepare, allergies to products, patch test done…"} /></label>
       </div>
       {clash && (
         <div className="clash" role="alert" style={{ marginTop: 14 }}>
@@ -214,7 +216,7 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
       )}
       <div className="foot">
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={() => save(false)} disabled={busy}>{busy ? "Saving…" : editing ? "Save new time" : "Book appointment"}</button>
+        <button className="btn primary" onClick={() => save(false)} disabled={busy}>{busy ? "Saving…" : editing ? "Save new time" : `Book ${W.appointment}`}</button>
       </div>
     </>
   );
@@ -230,6 +232,7 @@ function nextHalfHour() {
 function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: () => void; onChanged: (a?: Appointment) => void }) {
   const { business } = useSession();
   const v = vocab(business.business_type);
+  const W = words(business.business_type);
   const [a, setA] = useState(appt);
   const [finishing, setFinishing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -262,8 +265,8 @@ function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: ()
   }
 
   async function remove() {
-    if (!window.confirm(`Delete ${a.customer.name}'s appointment? This can't be undone. To keep a record, mark it cancelled instead.`)) return;
-    try { await api.del(`/appointments/${a.id}`); toast("Appointment deleted"); onChanged(); onClose(); } catch (e) { toast((e as Error).message); }
+    if (!window.confirm(`Delete ${a.customer.name}'s ${W.appointment}? This can't be undone. To keep a record, mark it cancelled instead.`)) return;
+    try { await api.del(`/appointments/${a.id}`); toast(`${W.Appointment} deleted`); onChanged(); onClose(); } catch (e) { toast((e as Error).message); }
   }
 
   if (editing) return <BookForm appt={a} onClose={() => setEditing(false)} onSaved={(u) => { if (u) setA(u); setEditing(false); onChanged(u); }} />;
@@ -282,7 +285,7 @@ function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: ()
       <dl>
         <dt>{v.staff}</dt><dd>{a.stylist?.name ?? "Anyone"}</dd>
         <dt>Price</dt><dd>{money(a.price, cur)} · {duration(a.duration_min)}</dd>
-        <dt>Where</dt><dd>{a.location === "home" ? `Home visit${a.address ? ` · ${a.address}` : ""}` : "At the salon"}</dd>
+        <dt>Where</dt><dd>{a.location === "home" ? `${W.vertical === "real_estate" ? "At the property" : "Home visit"}${a.address ? ` · ${a.address}` : ""}` : W.vertical === "real_estate" ? "At our office" : "At the salon"}</dd>
         <dt>Mobile</dt><dd>{a.customer.phone ?? <span className="muted">Not saved</span>}</dd>
         {a.notes && (<><dt>Notes</dt><dd style={{ whiteSpace: "pre-wrap" }}>{a.notes}</dd></>)}
         {a.confirmed_at && (<><dt>Confirmation</dt><dd>Sent {new Date(a.confirmed_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</dd></>)}
@@ -293,11 +296,11 @@ function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: ()
           {a.status === "booked" && <button className="btn wa" onClick={() => message("confirm")}>Send confirmation</button>}
           {a.status !== "booked" && <button className="btn" onClick={() => message("reminder")}>Send reminder</button>}
           {a.status !== "arrived" && <button className="btn" onClick={() => status("arrived")} disabled={busy}>Client arrived</button>}
-          <button className="btn primary" onClick={() => setFinishing(true)}>Finish & record visit</button>
+          <button className="btn primary" onClick={() => setFinishing(true)}>{W.vertical === "real_estate" ? "Record the outcome" : "Finish & record visit"}</button>
         </div>
       )}
       {a.status === "completed" && (
-        <p className="note" style={{ marginTop: 14 }}>Finished. The visit is in {a.customer.name.split(" ")[0]}'s history. <Link href="/services">See visits</Link></p>
+        <p className="note" style={{ marginTop: 14 }}>Finished. The {W.visit} is in {a.customer.name.split(" ")[0]}'s history. <Link href="/services">See {W.visits}</Link></p>
       )}
       {(a.status === "no_show" || a.status === "cancelled") && (
         <div className="acts"><button className="btn" onClick={() => status("booked")} disabled={busy}>Re-open booking</button></div>
@@ -316,6 +319,7 @@ function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: ()
 
 function Finish({ appt, onBack, onDone, rebook }: { appt: Appointment; onBack: () => void; onDone: (a: Appointment) => void; rebook: number }) {
   const { business } = useSession();
+  const W = words(business.business_type);
   const [price, setPrice] = useState(String(Number(appt.price)));
   const [notes, setNotes] = useState(appt.notes ?? "");
   const [weeks, setWeeks] = useState(rebook);
@@ -325,29 +329,29 @@ function Finish({ appt, onBack, onDone, rebook }: { appt: Appointment; onBack: (
     setBusy(true);
     try {
       const a = await api.post<Appointment>(`/appointments/${appt.id}/complete`, { price: Number(price) || 0, notes: notes.trim() || null, next_visit_weeks: weeks || null });
-      toast(weeks ? `Visit saved. We'll remind you to rebook in ${weeks} weeks.` : "Visit saved");
+      toast(weeks ? `${W.Visit} saved. We'll remind you to follow up in ${weeks} weeks.` : `${W.Visit} saved`);
       onDone(a);
     } catch (e) { setError((e as Error).message); setBusy(false); }
   }
   return (
     <>
-      <h2>Finish {appt.customer.name.split(" ")[0]}'s visit</h2>
-      <p className="intro">Saves the visit to their history and sets a reminder to invite them back.</p>
+      <h2>{W.vertical === "real_estate" ? `Record ${appt.customer.name.split(" ")[0]}'s deal` : `Finish ${appt.customer.name.split(" ")[0]}'s visit`}</h2>
+      <p className="intro">{W.vertical === "real_estate" ? "Saves the deal (commission, notes) to their history and sets a follow-up, e.g. before the tenancy renews." : "Saves the visit to their history and sets a reminder to invite them back."}</p>
       <ErrorBox error={error} />
       <div className="form" style={{ marginTop: error ? 12 : 0 }}>
-        <label>Amount paid ({business.currency})<input id="fin-price" type="number" min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} /></label>
+        <label>{W.vertical === "real_estate" ? "Commission / fee" : "Amount paid"} ({business.currency})<input id="fin-price" type="number" min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} /></label>
         <div>
-          <label>Invite back in</label>
+          <label>{W.vertical === "real_estate" ? "Follow up in" : "Invite back in"}</label>
           <div className="chips-inline" style={{ marginTop: 5 }}>
-            {[2, 3, 4, 6, 8, 12].map((w) => <button type="button" key={w} className="chip" aria-pressed={weeks === w} onClick={() => setWeeks(w)}>{w} wk</button>)}
+            {(W.vertical === "real_estate" ? [4, 12, 26, 44, 52] : [2, 3, 4, 6, 8, 12]).map((w) => <button type="button" key={w} className="chip" aria-pressed={weeks === w} onClick={() => setWeeks(w)}>{w} wk</button>)}
             <button type="button" className="chip" aria-pressed={weeks === 0} onClick={() => setWeeks(0)}>No reminder</button>
           </div>
         </div>
-        <label className="full">Notes for next time<textarea id="fin-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Colour formula, products used, length taken off…" /></label>
+        <label className="full">Notes for next time<textarea id="fin-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={W.vertical === "real_estate" ? "Unit, contract dates, renewal, landlord or buyer details…" : "Colour formula, products used, length taken off…"} /></label>
       </div>
       <div className="foot">
         <button className="btn" onClick={onBack}>Back</button>
-        <button className="btn primary" onClick={done} disabled={busy}>{busy ? "Saving…" : "Save visit"}</button>
+        <button className="btn primary" onClick={done} disabled={busy}>{busy ? "Saving…" : `Save ${W.visit}`}</button>
       </div>
     </>
   );

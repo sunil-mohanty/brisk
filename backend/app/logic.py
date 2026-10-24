@@ -61,6 +61,7 @@ def public_business(b: Business) -> s.PublicBusiness:
         trn=b.trn,
         initials=initials(b.name),
         business_type=b.business_type or "unisex",
+        vertical=s.vertical_of(b.business_type),
         slug=b.slug,
     )
 

@@ -3,8 +3,8 @@ import "./globals.css";
 import { Tracking } from "@/components/Tracking";
 import { site } from "@/lib/site";
 
-const title = `${site.name} – the booking and client app for salons`;
-const description = "Bookings, a link-in-bio page for Instagram and TikTok, quotes on WhatsApp and rebooking reminders. Built for UAE salons, barbers and spas. Free trial.";
+const title = `${site.name} – leads, quotes and bookings for small businesses`;
+const description = "Enquiries from Instagram and ads, quotes clients accept on WhatsApp, and bookings that confirm themselves. For salons and real estate brokers in the UAE. Free trial.";
 
 export const metadata: Metadata = {
   title: { default: title, template: `%s · ${site.name}` },
@@ -19,7 +19,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f3eadf",
+  themeColor: "#f4f2ee",
   colorScheme: "light",
 };
 

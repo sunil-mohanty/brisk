@@ -1,6 +1,6 @@
 """Load a demo salon so every screen has something in it on first run.
 
-    python -m app.seed            # creates demo@tressa.app / demo12345
+    python -m app.seed            # demo@tressa.app / demo12345 (salon), broker@tressa.app / demo12345 (real estate)
 """
 
 from datetime import date, datetime, time, timedelta, timezone
@@ -223,5 +223,95 @@ def main() -> None:
     print(f"Demo data loaded. Sign in with {EMAIL} / {PASSWORD}. Link page: /layla-beauty")
 
 
+BROKER = "broker@tressa.app"
+LISTINGS = [
+    # name, price, viewing minutes, category, "from" price
+    ("Viewing – 2BR, Marina Gate (sale)", 2450000, 45, "For sale", False),
+    ("Viewing – 1BR, JLT Cluster D (rent / year)", 85000, 30, "For rent", False),
+    ("Viewing – 4BR villa, Arabian Ranches (sale)", 6900000, 60, "For sale", True),
+    ("Viewing – Studio, Business Bay (rent / year)", 62000, 30, "For rent", False),
+    ("Property valuation visit", 750, 60, "Services", False),
+    ("Tenancy contract & Ejari", 1200, 30, "Services", False),
+]
+
+
+def seed_real_estate(db) -> None:
+    """A small brokerage, so the real estate theme and words can be tried."""
+    if db.scalar(select(User).where(User.email == BROKER)):
+        return
+    now = datetime.now(timezone.utc)
+    today = datetime.now(UAE).date()
+    ago = lambda d, h=10: (now - timedelta(days=d)).replace(hour=h, minute=0)  # noqa: E731
+
+    def at(day: date, hh: int, mm: int = 0) -> datetime:
+        return datetime.combine(day, time(hh, mm), tzinfo=UAE)
+
+    biz = Business(
+        name="Marina Key Properties", phone="+971 4 555 0192", whatsapp="+971 50 700 1122", email="hello@marinakey.ae",
+        tagline="Sales & leasing · Dubai Marina, JLT, Ranches", address="Office 1204, Marina Plaza, Dubai Marina",
+        trn="100877665400003", next_quote_number=2201, business_type="real_estate", slug="marina-key",
+        bio="RERA-registered brokerage. Apartments and villas for sale and rent across Dubai Marina, JLT and the Ranches.",
+        instagram="marinakey.dxb", hours="Daily 9am – 8pm", maps_url="https://maps.google.com/?q=Marina+Plaza+Dubai",
+        link_theme="navy", link_motion="calm", link_views=231, link_page_enabled=True,
+        open_time="09:00", close_time="20:00", closed_days="", default_vat_rate=Decimal("5.00"),
+    )
+    db.add(biz)
+    db.flush()
+    db.add(User(business_id=biz.id, email=BROKER, name="Omar", password_hash=hash_password(PASSWORD)))
+    db.add_all([CatalogItem(business_id=biz.id, name=n, unit_price=Decimal(p), duration_min=m, category=c, price_from=f, uses=6 - i % 4)
+                for i, (n, p, m, c, f) in enumerate(LISTINGS)])
+    team = [Stylist(business_id=biz.id, name=n, role=r, color=c, position=i) for i, (n, r, c) in enumerate(
+        [("Omar Siddiqui", "Senior agent", "#1f3a5f"), ("Hannah Brooks", "Leasing agent", "#4a6b8a"), ("Ravi Menon", "Sales agent", "#5b5f97")])]
+    db.add_all(team)
+    people = [("Daniel Weber", "+971 50 118 2290", "Dubai Marina"), ("Ananya Iyer", "+971 55 304 7712", "JLT"),
+              ("Khalid Al Mansoori", "+971 52 990 1431", "Arabian Ranches"), ("Sophie Martin", "+971 56 771 2045", "Business Bay"),
+              ("Yusuf Rahman", "+971 54 220 9918", "JVC")]
+    cs = [Customer(business_id=biz.id, name=n, phone=p, area=a, created_at=ago(20)) for n, p, a in people]
+    db.add_all(cs)
+    db.flush()
+    leads = [Lead(business_id=biz.id, customer_id=cs[ci].id, source=src, service_interest=svc, requirement=req, status=st,
+                  preferred_date=today + timedelta(days=pref) if pref else None, preferred_time=pt, created_at=ago(d))
+             for ci, src, svc, req, st, d, pref, pt in [
+                 (0, "Instagram", "2BR for sale, Dubai Marina", "Budget AED 2.5M, sea view, ready to move", LeadStatus.quoted, 4, None, None),
+                 (1, "Link page", "1BR for rent, JLT", "Moving in December, 1 cheque possible", LeadStatus.new, 0, 2, "Evening"),
+                 (2, "Property Finder", "Villa valuation", "Thinking of selling the 4BR", LeadStatus.won, 9, None, None),
+                 (3, "Link page", "Studio, Business Bay", None, LeadStatus.new, 1, 1, "Morning"),
+             ]]
+    db.add_all(leads)
+    db.flush()
+    q = Quote(business_id=biz.id, customer_id=cs[1].id, lead_id=leads[1].id, number=biz.next_quote_number, token=new_token(10),
+              status=QuoteStatus.viewed, created_at=ago(1), shared_at=ago(1), vat_rate=Decimal("5.00"),
+              notes="Agency fee 5% of annual rent + VAT. 4 cheques accepted.", reference="1BR JLT Cluster D, unit 1408",
+              items=[QuoteItem(position=0, description="Annual rent – 1BR, JLT Cluster D", quantity=Decimal(1), unit_price=Decimal(85000)),
+                     QuoteItem(position=1, description="Agency fee (5%)", quantity=Decimal(1), unit_price=Decimal(4250))],
+              views=[QuoteView(viewed_at=ago(1, 19))])
+    biz.next_quote_number += 1
+    db.add(q)
+    omar, hannah, ravi = team
+    for off, hh, mm, ci, who, svc, mins, st in [
+        (0, 11, 0, 0, omar, "Viewing – 2BR, Marina Gate", 45, AppointmentStatus.confirmed),
+        (0, 17, 30, 1, hannah, "Viewing – 1BR, JLT Cluster D", 30, AppointmentStatus.booked),
+        (1, 10, 0, 2, ravi, "Valuation visit – 4BR villa, Arabian Ranches", 60, AppointmentStatus.confirmed),
+        (2, 16, 0, 3, hannah, "Viewing – Studio, Business Bay", 30, AppointmentStatus.booked),
+    ]:
+        db.add(Appointment(business_id=biz.id, customer_id=cs[ci].id, stylist_id=who.id, token=new_token(10), service=svc,
+                           starts_at=at(today + timedelta(days=off), hh, mm), duration_min=mins, price=Decimal(0), status=st,
+                           confirmed_at=now if st == AppointmentStatus.confirmed else None))
+    db.add(ServiceRecord(business_id=biz.id, customer_id=cs[4].id, token=new_token(8), service="Leased – 1BR, JVC (annual)",
+                         service_date=today - timedelta(days=12), amount=Decimal(3900), technician="Hannah Brooks",
+                         notes="Tenancy starts 1 Nov. Renewal reminder set.", next_service_date=today + timedelta(weeks=44)))
+    db.add(Campaign(
+        business_id=biz.id, token=new_token(8), title="Sea-view 2BR at Marina Gate", vat_rate=Decimal(0),
+        description="High floor, full sea view, 1,380 sq ft, vacant on transfer.", valid_until=today + timedelta(days=21),
+        duration_min=45, views=184, notes="Viewings daily 9am – 8pm. Bring Emirates ID or passport.",
+        items=[CampaignItem(position=0, description="2-bed apartment, Marina Gate 1", unit_price=Decimal(2450000)),
+               CampaignItem(position=1, description="Covered parking space", unit_price=Decimal(0))],
+    ))
+    db.commit()
+    print(f"Real estate demo loaded. Sign in with {BROKER} / {PASSWORD}. Link page: /marina-key")
+
+
 if __name__ == "__main__":
     main()
+    with SessionLocal() as _db:
+        seed_real_estate(_db)

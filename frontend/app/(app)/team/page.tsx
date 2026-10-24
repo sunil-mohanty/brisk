@@ -7,12 +7,14 @@ import { ErrorBox, Loading, PageHead, toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Stylist } from "@/lib/types";
 import { vocab } from "@/lib/vocab";
+import { words } from "@/lib/words";
 
 const COLORS = ["#b4532f", "#5e7a5a", "#8a5a83", "#c28a3a", "#3f6f8a", "#a8484f", "#6b6f3a", "#7a5136"];
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase();
 
 export default function TeamPage() {
-  const v = vocab(useSession().business.business_type);
+  const { business } = useSession();
+  const v = vocab(business.business_type);
   const [team, setTeam] = useState<Stylist[] | null>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
@@ -43,7 +45,7 @@ export default function TeamPage() {
 
   return (
     <>
-      <PageHead eyebrow={team ? `${team.length} active` : undefined} title="Staff" sub={`Each ${v.staff.toLowerCase()} gets a column in the diary, so nobody is double-booked. Clients can ask for them by name on your link page.`} />
+      <PageHead eyebrow={team ? `${team.length} active` : undefined} title={words(business.business_type).Staff} sub={`Each ${v.staff.toLowerCase()} gets a column in the diary, so nobody is double-booked. Clients can ask for them by name on your link page.`} />
       <ErrorBox error={error} />
       <form className="card" onSubmit={add} style={{ marginBottom: 16 }}>
         <div className="form" style={{ gridTemplateColumns: "1fr 1fr auto", alignItems: "end" }}>

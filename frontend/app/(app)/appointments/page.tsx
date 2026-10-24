@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { AppointmentSheet, STATUS_LABEL, type SheetState } from "@/components/AppointmentSheet";
 import { Icon } from "@/components/icons";
 import { useSession } from "@/components/session";
+import { words } from "@/lib/words";
 import { Tip } from "@/components/Tips";
 import { ErrorBox, Loading, PageHead, Pill } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -52,6 +53,7 @@ function Calendar() {
   const router = useRouter();
   const params = useSearchParams();
   const { business } = useSession();
+  const W = words(business.business_type);
   const v = vocab(business.business_type);
   const [view, setView] = useState<View>((VIEWS as string[]).includes(params.get("view") ?? "") ? (params.get("view") as View) : "week");
   const [anchor, setAnchor] = useState(params.get("day") ?? todayUAE());
@@ -125,9 +127,9 @@ function Calendar() {
   return (
     <>
       <PageHead
-        title="Appointments"
+        title={W.Appointments}
         eyebrow={appts ? `${live.length} booked` : undefined}
-        action={<Tip id="ap.new" order={1} text="Book a client in. Or tap any free space in the calendar to book that exact time."><button className="btn primary" onClick={() => book(view === "day" ? anchor : todayUAE())}>{Icon.appointments()}New Booking</button></Tip>}
+        action={<Tip id="ap.new" order={1} text="Book a client in. Or tap any free space in the calendar to book that exact time."><button className="btn primary" onClick={() => book(view === "day" ? anchor : todayUAE())}>{Icon.appointments()}{W.vertical === "real_estate" ? "New Viewing" : "New Booking"}</button></Tip>}
       />
       <ErrorBox error={error} />
       <div className="cal-tools">
@@ -137,7 +139,7 @@ function Calendar() {
         <label className="staffpick">
           {Icon.staff()}
           <select value={staff} onChange={(e) => setStaff(e.target.value === "all" ? "all" : Number(e.target.value))} aria-label="Show staff">
-            <option value="all">All staff</option>
+            <option value="all">All {W.staff}</option>
             {(team ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </label>

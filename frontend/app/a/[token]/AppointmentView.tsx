@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { fmtDayLong, fmtTime, money, uaeDate } from "@/lib/format";
 import type { PublicAppointment } from "@/lib/types";
 import { duration } from "@/lib/vocab";
+import { words } from "@/lib/words";
 
 /** The client's confirmation page: when, where, with whom, add to calendar, change on WhatsApp. */
 export function AppointmentView({ token, initial }: { token: string; initial: PublicAppointment | null }) {
@@ -20,12 +21,12 @@ export function AppointmentView({ token, initial }: { token: string; initial: Pu
   const maps = a.address ? `https://maps.google.com/?q=${encodeURIComponent(a.address)}` : null;
 
   return (
-    <PubShell>
+    <PubShell vertical={a.business.vertical}>
       <PubHeader business={a.business} />
-      {gone && <div className="banner bad">This appointment was cancelled. Message {a.business.name} to book a new time.</div>}
+      {gone && <div className="banner bad">This {words(a.business.business_type).appointment} was cancelled. Message {a.business.name} to book a new time.</div>}
       {a.status === "completed" && <div className="banner ok">Thanks for visiting, {a.customer_name.split(" ")[0]}.</div>}
       <div className="pcard">
-        <div className="kicker">{a.status === "confirmed" ? "Confirmed" : "Your appointment"}</div>
+        <div className="kicker">{a.status === "confirmed" ? "Confirmed" : `Your ${words(a.business.business_type).appointment}`}</div>
         <h3 style={gone ? { textDecoration: "line-through" } : undefined}>{fmtDayLong(uaeDate(a.starts_at))}</h3>
         <p style={{ margin: "0 0 14px", fontSize: 18 }}>{fmtTime(a.starts_at)} – {fmtTime(a.ends_at)}</p>
         <div className="pmeta">
@@ -33,7 +34,7 @@ export function AppointmentView({ token, initial }: { token: string; initial: Pu
           {a.stylist && <div>With<b>{a.stylist}</b></div>}
           <div>Time<b>{duration(a.duration_min)}</b></div>
           {Number(a.price) > 0 && <div>Price<b>{money(a.price, a.currency)}</b></div>}
-          <div className="wide">{a.location === "home" ? "Home visit at" : "Where"}<b>{a.address ?? a.business.name}</b></div>
+          <div className="wide">{a.location === "home" ? (a.business.vertical === "real_estate" ? "Property" : "Home visit at") : "Where"}<b>{a.address ?? a.business.name}</b></div>
         </div>
       </div>
       {!gone && !past && (

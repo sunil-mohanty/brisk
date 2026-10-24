@@ -52,7 +52,7 @@ const EVENT_LABEL: Record<string, string> = {
 };
 export const eventLabel = (k: string) => EVENT_LABEL[k] ?? k.replace(/_/g, " ");
 
-/** Last `days` days as a week-column grid (Mon at top). Filled = the SME used the app that day. */
+/** Last `days` days as a week-column grid (Mon at top). Filled = the business used the app that day. */
 export function ActivityGrid({ days, active, start }: { days: number; active: string[]; start?: string }) {
   const on = new Set(active);
   const today = new Date();
