@@ -2,6 +2,7 @@
 gets their own accepted quote (and appointment, if they book a time)."""
 
 import io
+import random
 import re
 from datetime import datetime
 
@@ -14,7 +15,7 @@ from .. import schemas as s
 from ..activity import UAE, record
 from ..config import get_settings
 from ..db import get_db
-from .. import creative, social, whatsapp
+from .. import ai_art, creative, designer, social, whatsapp
 from ..logic import get_owned, item_out
 from ..models import Campaign, CampaignItem, Quote, User
 from ..security import current_user
@@ -53,6 +54,10 @@ def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
         whatsapp_accept_url=wa,
         image_version=creative.version(c),
         post_caption=social.default_caption(c, url),
+        design_style=c.design_style or "classic",
+        theme=designer.detect(c).label,
+        has_ai_art=c.art_id is not None,
+        ai_left=ai_art.left_this_month(db, c.business_id),
     )
 
 
@@ -85,7 +90,7 @@ def create_campaign(body: s.CampaignIn, user: User = Depends(current_user), db: 
     c = Campaign(
         business_id=user.business_id, token=token, title=body.title.strip(), description=body.description,
         discount=money(body.discount), vat_rate=body.vat_rate if body.vat_rate is not None else user.business.default_vat_rate,
-        valid_until=body.valid_until, duration_min=body.duration_min or 60, notes=body.notes, active=body.active,
+        valid_until=body.valid_until, duration_min=body.duration_min or 60, notes=body.notes, active=body.active, design_style="bold",  # themed from the package text
         items=_items(body.items),
     )
     db.add(c)
@@ -127,6 +132,36 @@ def responses(cid: int, user: User = Depends(current_user), db: Session = Depend
 def delete_campaign(cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     db.delete(_get(db, cid, user.business_id))
     db.commit()
+
+
+@router.patch("/{cid}/design", response_model=s.CampaignOut)
+def set_design(cid: int, body: s.DesignIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Pick a banner style, or shuffle the current one (different illustration, layout and angles)."""
+    c = _get(db, cid, user.business_id)
+    if body.style:
+        if body.style == "photo" and not c.art_id:
+            raise HTTPException(409, "Create an AI picture first.")
+        c.design_style = body.style
+    if body.shuffle:
+        c.design_seed = random.randint(1, 1_000_000)
+    db.commit()
+    db.refresh(c)
+    return campaign_out(db, c)
+
+
+@router.post("/{cid}/design/ai", response_model=s.CampaignOut)
+def make_ai_art(cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """One AI background picture from the package text (counts against the monthly allowance)."""
+    c = _get(db, cid, user.business_id)
+    try:
+        art = ai_art.generate(db, c.business_id, c.id, designer.ai_prompt(c))
+    except ai_art.ArtError as e:
+        raise HTTPException(409, str(e))
+    c.art_id, c.design_style = art.id, "photo"
+    record(db, c.business_id, "campaign_ai_art", c.title)
+    db.commit()
+    db.refresh(c)
+    return campaign_out(db, c)
 
 
 @router.get("/{cid}/qr")

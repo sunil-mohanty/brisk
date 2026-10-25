@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     youtube_api_url: str = "https://www.googleapis.com/youtube/v3"
     youtube_upload_url: str = "https://www.googleapis.com/upload/youtube/v3/videos"
 
+    # Optional AI background pictures for campaign banners (see ai_art.py). Off without a key.
+    ai_image_provider: str = "fal"  # fal (FLUX schnell, ~USD 0.003 a picture) | openai (gpt-image-1 low)
+    ai_image_key: str | None = None
+    ai_images_per_month: int = 10  # per business
+    ai_image_url: str | None = None  # override the provider's address (testing)
+
     @field_validator("database_url")
     @classmethod
     def use_psycopg_driver(cls, v: str) -> str:

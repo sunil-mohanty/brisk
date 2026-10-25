@@ -66,7 +66,7 @@ function CampaignDetail() {
         <div className="kpi"><span>Accepted</span><strong>{c.accepted}</strong><em>{c.views ? `${Math.round((c.accepted / c.views) * 100)}% of views` : "no views yet"}</em></div>
         <div className="kpi"><span>Booked a time</span><strong>{c.booked}</strong><em>{c.accepted - c.booked} still to book in</em></div>
       </div>
-      <SocialPost c={c} />
+      <SocialPost c={c} onChange={setC} />
       <div className="detail" style={{ marginTop: 16 }}>
         <div className="stack">
           <section className="panel">

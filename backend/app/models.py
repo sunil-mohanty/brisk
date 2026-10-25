@@ -18,6 +18,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -412,11 +413,29 @@ class Campaign(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # The banner: classic | bold | soft | photo (AI background in campaign_art), and the shuffle seed.
+    design_style: Mapped[str] = mapped_column(String(20), default="classic", server_default="classic")
+    design_seed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    art_id: Mapped[int | None] = mapped_column(ForeignKey("campaign_art.id", ondelete="SET NULL", use_alter=True, name="fk_campaigns_art_id"))
 
     business: Mapped[Business] = relationship()
     items: Mapped[list[CampaignItem]] = relationship(
         back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignItem.position"
     )
+
+
+class CampaignArt(Base):
+    """An AI-generated background picture for a campaign banner (kept, so it's paid for once)."""
+
+    __tablename__ = "campaign_art"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE", use_alter=True, name="fk_campaign_art_campaign_id"), index=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    prompt: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(30))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class CampaignItem(Base):

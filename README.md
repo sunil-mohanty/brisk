@@ -1,7 +1,16 @@
 # Tressa
 
-The booking and client app for salons, barbers, spas and nail studios in the UAE. A sister product to Xymber,
-on the same stack, with its own brand, data and deployment.
+Leads, quotes and bookings for small businesses (B2B). Two lines of business today, each with its own theme and words:
+
+| | Salons | Real estate brokers |
+|---|---|---|
+| Look | Ink navy + copper on warm stone, arched-mirror motif | Deep navy + charcoal, framed panels |
+| Words | Appointments, Staff, Services, Visits, Inventory | Viewings, Agents, Listings, Deals (no inventory) |
+| Public pages | "Book your time" | "Book a viewing" |
+
+The owner picks **Select your business: Salon / Real estate** at sign-up (`business_type` = a salon kind or `real_estate`).
+Landing page, sign-up and admin use the platform look (stone + ink navy, copper spark) and the forward-leaning "B" logo.
+A sister product to Xymber, on the same stack, with its own brand, data and deployment.
 
 ```
 Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  ──►  Rebook
@@ -26,6 +35,9 @@ Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  �
   - Clients **accept on the page and can book a free time** (from opening hours, staff and the diary). Free slot →
     *Accepted · Booking confirmed*, appointment created and a WhatsApp confirmation sent (automatic with the
     WhatsApp Cloud API, otherwise one tap for the owner). No time chosen or slot taken → *Accepted · Awaiting booking*.
+- **Campaign banners from the package text**: the theme (facial, nails, bridal, villa, sea view…) is read from the offer and
+  sets the illustration and colours; Bold / Soft / Classic with Shuffle, free. Optional AI background photo (fal.ai or
+  OpenAI, about USD 0.003 a picture) with a monthly cap per business.
 - **Post campaigns to Facebook, Instagram and YouTube** from Quotes → Campaigns: each salon connects its own Page,
   Instagram and channel; the picture (with price and QR code) and an 8-second Short are made automatically; clients
   tap or scan, accept and book. Setup: [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md#posting-campaigns-to-facebook-instagram-and-youtube).
@@ -43,7 +55,7 @@ Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  �
 | | Xymber | Tressa |
 |---|---|---|
 | Audience | Many trades | Salons only (unisex, ladies, barbers, spa, nails, home service) |
-| Look | Navy, IBM Plex / Bricolage, left side menu | Clay & cream, Gloock serif / Hanken Grotesk, top bar, arched-mirror motif |
+| Look | Navy, IBM Plex / Bricolage, left side menu | Ink + copper (salons) / navy + charcoal (brokers), Gloock serif / Hanken Grotesk |
 | New | — | Appointments diary, team, link-in-bio page with animations, booking requests, client confirmation page + calendar file |
 | Database | Its own | Its own (fresh single migration `0001_initial`) |
 
@@ -69,7 +81,7 @@ then `cd frontend && npm install && npm run dev`.
 ## Tests
 
 ```bash
-cd backend && pytest        # 65 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
+cd backend && pytest        # 70 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
 ```
 
 ## Brand name

@@ -96,7 +96,7 @@ Push the new code. The `api` service runs database migrations on start, so the l
 and the link-page switch. Existing data is kept, and quotes already accepted are marked
 "booked" (if they have an appointment) or "awaiting booking".
 
-This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
+Later updates add `0005_design` (banner style and AI pictures). This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
 `pillow`, `cryptography` and `imageio-ffmpeg` to the api, installed automatically on deploy.
 The WhatsApp part (`0003_whatsapp`) adds (a log of incoming WhatsApp messages and
 delivery ticks). Nothing changes until you add the WhatsApp variables (see below).
@@ -201,6 +201,31 @@ and Settings says "Reconnect".
 | Instagram post fails "couldn't use the picture" | `APP_URL` must be the public web address (Instagram downloads the picture from it). |
 | YouTube video is private | The Google project hasn't passed the YouTube API audit yet (step B7). |
 | `quotaExceeded` from YouTube | Daily upload quota used up; it resets at midnight Pacific time, or request more. |
+
+## Campaign banners from the package text
+
+Free, no setup: every new campaign gets a banner designed from its **offer name, "What clients get" and items**.
+The theme is detected (salons: skin & facial, nails, bridal, hair, colour, lashes, makeup, spa, barber; brokers: sea
+view, villa, apartment, for rent, off-plan, commercial) and sets the illustrations and colours. Owners pick **Bold**,
+**Soft** or **Classic** and press **Shuffle** for a different layout. Prices, items and the QR code are always exact.
+
+### Optional: AI background pictures (very low cost)
+
+Only the background photo is made by AI; the text is drawn by Brisk on top. Each picture is made once and reused
+for all sizes, the video and every post. Each business gets a monthly allowance (default 10).
+
+| Provider | Model | About per picture | 10 pictures × 50 salons a month |
+|---|---|---|---|
+| fal.ai (default) | FLUX.1 [schnell] | USD 0.003 | ~USD 1.50 |
+| OpenAI | gpt-image-1, low quality | USD 0.01–0.02 | ~USD 5–10 |
+
+Set on the **api** service (leave out to keep AI off):
+```
+AI_IMAGE_PROVIDER=fal            # or openai
+AI_IMAGE_KEY=<key from fal.ai → Dashboard → Keys, or platform.openai.com>
+AI_IMAGES_PER_MONTH=10           # per business
+```
+fal.ai: sign up at fal.ai, add a few dollars of credit, create a key. Prices change; check the provider's page.
 
 ## WhatsApp Business API (optional, later phase)
 

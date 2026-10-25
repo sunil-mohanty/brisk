@@ -1251,3 +1251,17 @@ button.slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .lk-re .lk-mirror { width: 132px; height: 132px; border-radius: 24px; }
 .lk-re .lk-team li i, .lk-re .lk-done-arch { border-radius: 16px; height: 60px; padding-top: 0; }
 .lk-re .lk-drift i { border-radius: 40px; }
+/* Banner design picker */
+.sp-design { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.sp-theme { font-size: 12.5px; color: var(--muted); }
+.sp-theme b { color: var(--fg); font-weight: 600; }
+.sp-styles { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.sp-style { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface); }
+.sp-style[aria-checked="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+.sp-style:disabled { opacity: .6; cursor: wait; }
+.sp-style:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sp-style i { width: 14px; height: 14px; border-radius: 4px; flex: none; }
+.st-bold i { background: var(--fg); }
+.st-soft i { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--line-2); }
+.st-classic i { background: var(--accent); border-radius: 7px 7px 3px 3px; }
+.st-photo i { background: linear-gradient(135deg, #8fb3a3, #3a4a66); }

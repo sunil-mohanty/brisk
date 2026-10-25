@@ -8,6 +8,13 @@ import { fmtDateTime } from "@/lib/format";
 import { PLATFORMS, platform } from "@/lib/social";
 import type { Campaign, CampaignPost, SocialProvider, SocialStatus } from "@/lib/types";
 
+const STYLES: { id: Campaign["design_style"]; label: string }[] = [
+  { id: "bold", label: "Bold" },
+  { id: "soft", label: "Soft" },
+  { id: "classic", label: "Classic" },
+  { id: "photo", label: "AI photo" },
+];
+
 const FORMATS = [
   { id: "portrait", label: "Feed 4:5" },
   { id: "square", label: "Square" },
@@ -15,13 +22,14 @@ const FORMATS = [
 ] as const;
 
 /** Post a campaign to the salon's Facebook Page, Instagram and YouTube channel in one go. */
-export function SocialPost({ c }: { c: Campaign }) {
+export function SocialPost({ c, onChange }: { c: Campaign; onChange?: (c: Campaign) => void }) {
   const [st, setSt] = useState<SocialStatus | null>(null);
   const [posts, setPosts] = useState<CampaignPost[] | null>(null);
   const [pick, setPick] = useState<Set<SocialProvider>>(new Set());
   const [caption, setCaption] = useState(c.post_caption);
   const [fmt, setFmt] = useState<(typeof FORMATS)[number]["id"]>("portrait");
   const [busy, setBusy] = useState(false);
+  const [designing, setDesigning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,6 +56,21 @@ export function SocialPost({ c }: { c: Campaign }) {
   const live = c.active && !c.expired;
   const img = `/api/public/c/${c.token}/image/${fmt}.jpg?v=${c.image_version}`;
   const safe = c.title.replace(/[^A-Za-z0-9_-]+/g, "-");
+
+  async function design(body: { style?: Campaign["design_style"]; shuffle?: boolean }) {
+    setDesigning(body.shuffle ? "shuffle" : body.style ?? "");
+    try { onChange?.(await api.patch<Campaign>(`/campaigns/${c.id}/design`, body)); }
+    catch (e) { toast((e as Error).message); }
+    setDesigning(null);
+  }
+  async function aiPicture() {
+    setDesigning("ai");
+    try {
+      onChange?.(await api.post<Campaign>(`/campaigns/${c.id}/design/ai`));
+      toast("AI picture ready. Your offer, price and QR code are on top.");
+    } catch (e) { toast((e as Error).message); }
+    setDesigning(null);
+  }
 
   async function post() {
     if (!pick.size) return setError("Choose at least one place to post.");
@@ -81,6 +104,28 @@ export function SocialPost({ c }: { c: Campaign }) {
         <div className="sp-pic">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={img} alt={`Picture for ${c.title}`} className={`fmt-${fmt}`} />
+          <div className="sp-design">
+            <span className="sp-theme">Design from your package{c.theme ? <> · <b>{c.theme}</b></> : null}</span>
+            <div className="sp-styles" role="radiogroup" aria-label="Design">
+              {STYLES.filter((s) => s.id !== "photo" || c.has_ai_art).map((s) => (
+                <button key={s.id} type="button" role="radio" aria-checked={c.design_style === s.id} disabled={!!designing}
+                  className={`sp-style st-${s.id}`} onClick={() => c.design_style !== s.id && design({ style: s.id })}>
+                  <i aria-hidden="true" />{s.label}
+                </button>
+              ))}
+            </div>
+            <div className="acts" style={{ justifyContent: "center" }}>
+              {(c.design_style === "bold" || c.design_style === "soft") && (
+                <button className="btn sm" disabled={!!designing} onClick={() => design({ shuffle: true })}>{designing === "shuffle" ? "Shuffling…" : "↻ Shuffle"}</button>
+              )}
+              {c.ai_left !== null && (
+                <button className="btn sm" disabled={!!designing || c.ai_left === 0} onClick={aiPicture}
+                  title="Makes a background photo from your package with AI. Your text, price and QR code stay exact.">
+                  {designing === "ai" ? "Creating picture…" : `✨ AI picture · ${c.ai_left} left`}
+                </button>
+              )}
+            </div>
+          </div>
           <div className="seg sp-fmt" role="tablist" aria-label="Picture size">
             {FORMATS.map((f) => <button key={f.id} type="button" aria-pressed={fmt === f.id} onClick={() => setFmt(f.id)}>{f.label}</button>)}
           </div>

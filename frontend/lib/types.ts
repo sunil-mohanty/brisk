@@ -229,6 +229,10 @@ export interface Campaign {
   whatsapp_accept_url: string | null;
   image_version: string;
   post_caption: string;
+  design_style: "classic" | "bold" | "soft" | "photo";
+  theme: string;
+  has_ai_art: boolean;
+  ai_left: number | null;
 }
 
 export interface PublicCampaign {

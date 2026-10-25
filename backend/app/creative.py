@@ -112,11 +112,36 @@ def is_real_estate(c: Campaign) -> bool:
 def version(c: Campaign) -> str:
     """Changes when anything on the picture changes (for cache-busting preview URLs)."""
     key = "|".join([c.title, c.description or "", str(c.discount), str(c.vat_rate), str(c.valid_until), c.business.name,
-                    c.business.currency] + [f"{i.description}:{i.quantity}:{i.unit_price}" for i in c.items])
+                    c.business.currency, str(getattr(c, "design_style", "")), str(getattr(c, "design_seed", "")),
+                    str(getattr(c, "art_id", ""))] + [f"{i.description}:{i.quantity}:{i.unit_price}" for i in c.items])
     return hashlib.sha1(key.encode()).hexdigest()[:10]
 
 
-def render(c: Campaign, url: str, fmt: str = "portrait") -> bytes:
+def render(c: Campaign, url: str, fmt: str = "portrait", photo: bytes | None = None) -> bytes:
+    """The campaign picture in its chosen design (classic, bold, soft, or photo with an AI background)."""
+    style = getattr(c, "design_style", None) or "classic"
+    if style != "classic":
+        from . import designer
+
+        if style == "photo" and photo is None and getattr(c, "art_id", None):
+            photo = _art_bytes(c)
+        if style != "photo" or photo:
+            return designer.render(c, url, fmt, style, photo)
+    return _render_classic(c, url, fmt)
+
+
+def _art_bytes(c: Campaign) -> bytes | None:
+    """The stored AI background (used by the picture, the video and social posts alike)."""
+    from sqlalchemy.orm import object_session
+
+    from .models import CampaignArt
+
+    db = object_session(c)
+    art = db.get(CampaignArt, c.art_id) if db is not None else None
+    return art.data if art else None
+
+
+def _render_classic(c: Campaign, url: str, fmt: str = "portrait") -> bytes:
     W, H = SIZES.get(fmt, SIZES["portrait"])
     re_ = is_real_estate(c)
     P = RE_PALETTE if re_ else SALON_PALETTE

@@ -803,6 +803,10 @@ class CampaignOut(BaseModel):
     whatsapp_accept_url: str | None = None
     image_version: str = ""
     post_caption: str = ""
+    design_style: str = "classic"
+    theme: str = ""  # what the designer read from the package, e.g. "Skin & facial"
+    has_ai_art: bool = False
+    ai_left: int | None = None  # AI pictures left this month; None = AI not set up
 
 
 class PublicCampaign(BaseModel):
@@ -896,6 +900,11 @@ class CampaignPostOut(ORM):
     error: str | None
     created_at: datetime
     posted_at: datetime | None
+
+
+class DesignIn(BaseModel):
+    style: str | None = Field(default=None, pattern="^(classic|bold|soft|photo)$")
+    shuffle: bool = False
 
 
 # ---------- inventory ----------
