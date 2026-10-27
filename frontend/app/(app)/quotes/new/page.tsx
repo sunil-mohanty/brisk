@@ -71,6 +71,7 @@ function QuoteForm() {
         setNotes(q.notes ?? "");
         setReference(q.reference ?? "");
         if (q.attachment && q.design_style === "upload") setAttachment({ id: q.attachment.id, name: q.attachment.name, is_pdf: q.attachment.is_pdf, preview: q.picture_url });
+        else if (q.design_style === "photo" && q.picture_url) setAttachment({ id: -1, name: "AI picture (change it on the quote page)", is_pdf: false, preview: q.picture_url, ai: true });
         setReady(true);
       });
     }
@@ -115,7 +116,8 @@ function QuoteForm() {
       valid_days: Number(validDays) || 7,
       notes: notes || null,
       reference: reference.trim() || null,
-      attachment_id: attachment?.id ?? null,
+      attachment_id: attachment && !attachment.ai ? attachment.id : null,
+      ai_art_id: attachment?.ai && attachment.id > 0 ? attachment.id : null,
     };
     try {
       const q = editId ? await api.put<Quote>(`/quotes/${editId}`, body) : await api.post<Quote>("/quotes", body);
@@ -189,7 +191,7 @@ function QuoteForm() {
           <label>VAT %<input id="vat" type="number" min="0" max="100" step="0.5" value={vat} onChange={(e) => setVat(e.target.value)} /></label>
           <label>Valid for (days)<input id="valid" type="number" min="1" max="365" value={validDays} onChange={(e) => setValidDays(e.target.value)} /></label>
           <div className="full">
-            <span className="flabel">Picture or brochure <span className="hint">(optional, e.g. your price list or package flyer)</span></span>
+            <span className="flabel">Picture or brochure <span className="hint">(optional: upload your flyer or price list, or create one with AI)</span></span>
             <AttachField value={attachment} onChange={setAttachment} />
           </div>
           <label className="full">Notes for your client<textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={v.quoteNotesPlaceholder} /></label>

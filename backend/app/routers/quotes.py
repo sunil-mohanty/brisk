@@ -60,8 +60,9 @@ def create_quote(body: s.QuoteIn, user: User = Depends(current_user), db: Sessio
     else:
         customer = resolve_customer(db, user.business_id, body)
     upload = _own_upload(db, body.attachment_id, user.business_id) if body.attachment_id else None
-    if not body.items and not upload:
-        raise HTTPException(422, "Add at least one service with a price, or attach a picture or brochure.")
+    ai_pic = _own_ai(db, body.ai_art_id, user.business_id) if body.ai_art_id else None
+    if not body.items and not upload and not ai_pic:
+        raise HTTPException(422, "Add at least one service with a price, or add a picture or brochure.")
     token = new_token(10)
     while db.scalar(select(Quote.id).where(Quote.token == token)):
         token = new_token(10)
@@ -83,6 +84,8 @@ def create_quote(body: s.QuoteIn, user: User = Depends(current_user), db: Sessio
     db.flush()
     if upload:
         quote_art.attach(q, upload)
+    if ai_pic:
+        quote_art.use_ai(q, ai_pic)  # the AI picture is what's sent; an uploaded file stays available
     set_lead_status(db, q.lead_id, LeadStatus.quoted, only_from=(LeadStatus.new, LeadStatus.contacted))
     record(db, biz.id, "quote_created", quote_label(q.number))
     db.commit()
@@ -133,7 +136,9 @@ def update_quote(quote_id: int, body: s.QuoteIn, user: User = Depends(current_us
         q.customer_id = resolve_customer(db, user.business_id, body).id
     if body.attachment_id:
         quote_art.attach(q, _own_upload(db, body.attachment_id, user.business_id))
-    if not body.items and not q.file_id:
+    if body.ai_art_id:
+        quote_art.use_ai(q, _own_ai(db, body.ai_art_id, user.business_id))
+    if not body.items and not q.file_id and not q.art_id:
         raise HTTPException(422, "Add at least one service with a price, or attach a picture or brochure.")
     q.items = _items(body.items)
     q.discount = body.discount
@@ -145,6 +150,13 @@ def update_quote(quote_id: int, body: s.QuoteIn, user: User = Depends(current_us
     db.commit()
     db.refresh(q)
     return quote_out(db, q)
+
+
+def _own_ai(db: Session, art_id: int, business_id: int) -> CampaignArt:
+    a = db.get(CampaignArt, art_id)
+    if not a or a.business_id != business_id or a.kind != "ai":
+        raise HTTPException(404, "That AI picture wasn't found. Create it again.")
+    return a
 
 
 def _own_upload(db: Session, art_id: int, business_id: int) -> CampaignArt:
@@ -174,7 +186,7 @@ def set_quote_design(quote_id: int, body: s.QuoteDesignIn, user: User = Depends(
             raise HTTPException(409, "Create an AI picture first.")
         if body.style == "upload" and not q.file_id:
             raise HTTPException(409, "Upload a picture or brochure first.")
-        if body.style in quote_art.BANNER_STYLES and not q.items:
+        if body.style in ("bold", "soft", "classic") and not q.items:
             raise HTTPException(409, "Add services to the quote to make a picture from them.")
         q.design_style = body.style
     if body.shuffle:
@@ -185,13 +197,17 @@ def set_quote_design(quote_id: int, body: s.QuoteDesignIn, user: User = Depends(
 
 
 @router.post("/{quote_id}/design/ai", response_model=s.QuoteOut)
-def make_quote_ai_art(quote_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """An AI background from the quote's services (counts against the monthly allowance)."""
+def make_quote_ai_art(quote_id: int, body: s.AiImageIn | None = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """An AI picture for the quote: from the owner's description (and optional reference photo), or from its services.
+    Counts against the monthly allowance."""
     q = _get(db, quote_id, user.business_id)
-    if not q.items:
-        raise HTTPException(409, "Add services to the quote first, so the picture knows what to show.")
+    desc = ((body.description if body else None) or "").strip()
+    ref = quote_art.reference(db, user.business_id, body.reference_id if body else None)
+    if not desc and not q.items:
+        raise HTTPException(409, "Describe the picture you want, or add services to the quote first.")
+    prompt = designer.described_prompt(desc, bool(ref)) if desc else designer.ai_prompt(quote_art.as_offer(q))
     try:
-        a = ai_art.generate(db, q.business_id, None, designer.ai_prompt(quote_art.as_offer(q)), quote_id=q.id)
+        a = ai_art.generate(db, q.business_id, None, prompt, quote_id=q.id, reference=ref)
     except ai_art.ArtError as e:
         raise HTTPException(409, str(e))
     q.art_id, q.design_style = a.id, "photo"

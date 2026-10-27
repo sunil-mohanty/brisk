@@ -262,6 +262,7 @@ class QuoteIn(CustomerRef):
     lead_id: int | None = None
     items: list[QuoteItemIn] = Field(default=[], max_length=50)  # may be empty when a brochure is attached
     attachment_id: int | None = None  # an uploaded picture / PDF brochure (POST /media)
+    ai_art_id: int | None = None  # an AI picture made before saving (POST /media/ai)
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
     valid_days: int = Field(default=7, ge=1, le=365)
@@ -917,6 +918,17 @@ class CampaignPostOut(ORM):
     error: str | None
     created_at: datetime
     posted_at: datetime | None
+
+
+class AiImageIn(BaseModel):
+    description: str | None = Field(default=None, max_length=400)  # empty: made from the quote's services
+    reference_id: int | None = None  # an uploaded photo for the AI to follow (POST /media)
+
+
+class AiImageOut(BaseModel):
+    id: int
+    preview: str  # data URL, for showing it before the quote is saved
+    ai_left: int | None = None
 
 
 class QuoteDesignIn(BaseModel):

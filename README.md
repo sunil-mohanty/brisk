@@ -39,7 +39,8 @@ Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  �
   sets the illustration and colours; Bold / Soft / Classic with Shuffle, free. Optional AI background photo (fal.ai or
   OpenAI, about USD 0.003 a picture) with a monthly cap per business.
 - **Pictures on client quotes** (optional): attach an image or PDF brochure from the computer (a quote can be just a
-  brochure), or make a picture from the quote (Bold / Soft / Classic, or an AI background). WhatsApp shows it as the
+  brochure), or make a picture from the quote (Bold / Soft / Classic), or create one with AI from a description (and an optional
+  reference photo). WhatsApp shows it as the
   link preview; on phones "Share picture" sends the picture itself.
 - **Post campaigns to Facebook, Instagram and YouTube** from Quotes → Campaigns: each salon connects its own Page,
   Instagram and channel; the picture (with price and QR code) and an 8-second Short are made automatically; clients
@@ -84,7 +85,7 @@ then `cd frontend && npm install && npm run dev`.
 ## Tests
 
 ```bash
-cd backend && pytest        # 76 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
+cd backend && pytest        # 78 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
 ```
 
 ## Brand name

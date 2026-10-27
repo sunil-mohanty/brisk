@@ -57,6 +57,8 @@ def picture(db: Session, q: Quote, fmt: str = "portrait") -> tuple[bytes, str] |
         photo = a.data if (q.design_style == "photo" and a and a.kind == "ai") else None
         if q.design_style == "photo" and not photo:
             return None
+        if q.design_style == "photo" and not q.items:  # brochure-style quote: the AI picture as it is
+            return photo, "image/jpeg"
         o = as_offer(q)
         if q.design_style == "classic":
             return creative._render_classic(o, quote_url(q), fmt), "image/jpeg"
@@ -100,6 +102,20 @@ async def read_upload(db: Session, business_id: int, file: UploadFile) -> Campai
     db.add(a)
     db.flush()
     return a
+
+
+def use_ai(q: Quote, a: CampaignArt) -> None:
+    a.quote_id = q.id
+    q.art_id, q.design_style = a.id, "photo"
+
+
+def reference(db: Session, business_id: int, ref_id: int | None) -> bytes | None:
+    if not ref_id:
+        return None
+    r = db.get(CampaignArt, ref_id)
+    if not r or r.business_id != business_id or r.kind != "upload" or not r.content_type.startswith("image/"):
+        raise HTTPException(422, "The reference must be a picture you uploaded (JPG, PNG or WebP).")
+    return r.data
 
 
 def attach(q: Quote, a: CampaignArt) -> None:

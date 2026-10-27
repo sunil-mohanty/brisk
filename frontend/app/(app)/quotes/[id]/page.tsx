@@ -106,7 +106,7 @@ function QuoteDetail() {
             </div>
             <p className="note" style={{ marginBottom: 0 }}>Previews don't count as views. Only your client opening the link does.</p>
           </section>
-          <QuotePicture q={q} onChange={setQ} shareText={q.share_message} />
+          <QuotePicture q={q} onChange={setQ} />
           <section className="panel">
             <h2>Items</h2>
             <div className="list">
@@ -147,7 +147,7 @@ function QuoteDetail() {
                 </div>
               ) : (
                 <div className="acts" style={{ justifyContent: "flex-start" }}>
-                  <p className="muted" style={{ margin: 0, flexBasis: "100%" }}>Accepted, waiting for a booking. The client can still pick a time from their link.</p>
+                  <p className="muted" style={{ margin: 0, flexBasis: "100%" }}>Accepted. Message the client to agree a time, then book it here.</p>
                   <Link className="btn primary" href={`/appointments?quote=${q.id}`}>Book the appointment</Link>
                   <Link className="btn" href={`/services/new?quote=${q.id}`}>Already done? Record the visit</Link>
                 </div>

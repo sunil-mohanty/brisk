@@ -56,12 +56,17 @@ def left_this_month(db: Session, business_id: int) -> int | None:
     return max(0, get_settings().ai_images_per_month - used_this_month(db, business_id))
 
 
-def _fal(prompt: str) -> bytes:
+def _fal(prompt: str, reference: bytes | None = None) -> bytes:
     s = get_settings()
-    url = s.ai_image_url or "https://fal.run/fal-ai/flux/schnell"
-    r = client().post(url, headers={"Authorization": f"Key {s.ai_image_key}"},
-                      json={"prompt": prompt, "image_size": "portrait_16_9", "num_images": 1, "num_inference_steps": 4,
-                            "enable_safety_checker": True})
+    if reference:  # FLUX.1 [dev] image-to-image: follows the owner's photo (about USD 0.03 a picture)
+        url = s.ai_image_url or "https://fal.run/fal-ai/flux/dev/image-to-image"
+        body = {"prompt": prompt, "image_url": "data:image/jpeg;base64," + base64.b64encode(reference).decode(),
+                "strength": 0.85, "num_inference_steps": 28, "num_images": 1, "enable_safety_checker": True}
+    else:  # FLUX.1 [schnell] from text (about USD 0.003 a picture)
+        url = s.ai_image_url or "https://fal.run/fal-ai/flux/schnell"
+        body = {"prompt": prompt, "image_size": "portrait_16_9", "num_images": 1, "num_inference_steps": 4,
+                "enable_safety_checker": True}
+    r = client().post(url, headers={"Authorization": f"Key {s.ai_image_key}"}, json=body)
     if r.status_code >= 300:
         raise ArtError(f"The picture service said: {r.text[:200]}")
     img_url = (r.json().get("images") or [{}])[0].get("url")
@@ -75,11 +80,17 @@ def _fal(prompt: str) -> bytes:
     return got.content
 
 
-def _openai(prompt: str) -> bytes:
+def _openai(prompt: str, reference: bytes | None = None) -> bytes:
     s = get_settings()
-    url = s.ai_image_url or "https://api.openai.com/v1/images/generations"
-    r = client().post(url, headers={"Authorization": f"Bearer {s.ai_image_key}"},
-                      json={"model": "gpt-image-1", "prompt": prompt, "size": "1024x1536", "quality": "low", "n": 1})
+    auth = {"Authorization": f"Bearer {s.ai_image_key}"}
+    if reference:  # edit from the owner's photo
+        url = s.ai_image_url or "https://api.openai.com/v1/images/edits"
+        r = client().post(url, headers=auth, files={"image": ("reference.jpg", reference, "image/jpeg")},
+                          data={"model": "gpt-image-1", "prompt": prompt, "size": "1024x1536", "quality": "low", "n": "1"})
+    else:
+        url = s.ai_image_url or "https://api.openai.com/v1/images/generations"
+        r = client().post(url, headers=auth,
+                          json={"model": "gpt-image-1", "prompt": prompt, "size": "1024x1536", "quality": "low", "n": 1})
     if r.status_code >= 300:
         raise ArtError(f"The picture service said: {r.text[:200]}")
     data = (r.json().get("data") or [{}])[0]
@@ -90,7 +101,8 @@ def _openai(prompt: str) -> bytes:
     raise ArtError("The picture service returned no picture. Try again.")
 
 
-def generate(db: Session, business_id: int, campaign_id: int | None, prompt: str, quote_id: int | None = None) -> CampaignArt:
+def generate(db: Session, business_id: int, campaign_id: int | None, prompt: str, quote_id: int | None = None,
+             reference: bytes | None = None) -> CampaignArt:
     """Makes one background picture (counts against this month's allowance). The caller commits."""
     s = get_settings()
     if not enabled():
@@ -99,7 +111,7 @@ def generate(db: Session, business_id: int, campaign_id: int | None, prompt: str
         raise ArtError(f"You've used this month's {s.ai_images_per_month} AI pictures. The free designs still work, "
                        "and the allowance resets on the 1st.")
     try:
-        raw = _fal(prompt) if s.ai_image_provider == "fal" else _openai(prompt)
+        raw = _fal(prompt, reference) if s.ai_image_provider == "fal" else _openai(prompt, reference)
     except httpx.HTTPError as e:
         log.warning("AI picture failed: %s", e)
         raise ArtError("Couldn't reach the picture service. Try again in a minute.")

@@ -216,7 +216,8 @@ for all sizes, the video and every post. Each business gets a monthly allowance 
 
 | Provider | Model | About per picture | 10 pictures × 50 salons a month |
 |---|---|---|---|
-| fal.ai (default) | FLUX.1 [schnell] | USD 0.003 | ~USD 1.50 |
+| fal.ai (default) | FLUX.1 [schnell] (from a description) | USD 0.003 | ~USD 1.50 |
+| fal.ai, with a reference photo | FLUX.1 [dev] image-to-image | about USD 0.03 | ~USD 15 if every picture used one |
 | OpenAI | gpt-image-1, low quality | USD 0.01–0.02 | ~USD 5–10 |
 
 Set on the **api** service (leave out to keep AI off):

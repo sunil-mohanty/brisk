@@ -1296,3 +1296,11 @@ button.slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .qbrochure span { width: 48px; height: 60px; border-radius: 8px; background: #f7dad3; color: #a3392b; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; }
 .qbrochure b { display: block; }
 .qbrochure small { color: var(--pub-muted); }
+/* AI picture form */
+.attach-tabs { margin-bottom: 10px; }
+.attach-tabs button { padding: 7px 14px; }
+.aiform { display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.aiform textarea { min-height: 76px; }
+.aiform-ref { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.aiform-ref img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+.qpic-tools .aiform { max-width: 520px; }

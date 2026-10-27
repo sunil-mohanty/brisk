@@ -398,3 +398,12 @@ def ai_prompt(c: Campaign) -> str:
     return (f"Premium advertising photograph, {th.subject}. Inspired by: {words}. Elegant, minimal, soft natural light, "
             "shallow depth of field, rich but calm colours, plenty of empty space in the lower half. "
             "No text, no letters, no numbers, no logos, no watermark, no people's faces.")
+
+
+def described_prompt(description: str, has_reference: bool = False) -> str:
+    """The owner's own words, kept safe and text-free."""
+    words = re.sub(r"[^\w ,.&+\-'()/%]", " ", description, flags=re.UNICODE)
+    words = " ".join(words.split())[:400]
+    lead = "Based on the reference photo, create" if has_reference else "Create"
+    return (f"{lead} a premium advertising photograph: {words}. Elegant, minimal, soft natural light, rich but calm colours, "
+            "plenty of empty space in the lower half. No text, no letters, no numbers, no logos, no watermark.")

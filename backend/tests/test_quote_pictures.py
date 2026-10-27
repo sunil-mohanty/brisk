@@ -115,3 +115,42 @@ def test_ai_picture_for_a_quote_shares_the_allowance(client, fal):
     assert client.get(f"/api/public/q/{q['token']}").json()["attachment"] is None  # the client sees only the chosen picture
     c = client.post("/api/campaigns", json={"title": "Glow", "items": [{"description": "Facial", "unit_price": 1}]}, headers=h).json()
     assert c["ai_left"] == 2
+
+
+def test_ai_picture_from_a_description_before_saving(client, fal):
+    import json
+
+    h = signup(client)
+    assert client.get("/api/media/ai", headers=h).json()["ai_left"] == 3
+    assert client.post("/api/media/ai", json={"description": ""}, headers=h).status_code == 422
+    r = client.post("/api/media/ai", json={"description": "Relaxing spa room with candles & orchids"}, headers=h)
+    assert r.status_code == 201, r.text
+    pic = r.json()
+    assert pic["preview"].startswith("data:image/jpeg;base64,") and pic["ai_left"] == 2
+    prompt = json.loads(fal[0].content)["prompt"]
+    assert "spa room with candles & orchids" in prompt and "No text" in prompt
+    # a picture-only quote (no items): the AI picture is sent as it is
+    q = _quote(client, h, items=(), ai_art_id=pic["id"]).json()
+    assert q["design_style"] == "photo" and q["picture_url"]
+    img = Image.open(io.BytesIO(client.get(f"/api/public/q/{q['token']}/picture/portrait.jpg").content))
+    assert img.size == (768, 1344)  # the picture itself, no banner
+
+
+def test_ai_picture_with_a_reference_photo(client, fal):
+    import json
+
+    h = signup(client)
+    ref = client.post("/api/media", files={"file": ("salon.png", _png(), "image/png")}, headers=h).json()
+    q = _quote(client, h).json()
+    r = client.post(f"/api/quotes/{q['id']}/design/ai", json={"description": "Same room, warmer light", "reference_id": ref["id"]}, headers=h)
+    assert r.status_code == 200, r.text
+    body = json.loads(fal[0].content)
+    assert str(fal[0].url).endswith("/image-to-image") and body["image_url"].startswith("data:image/jpeg;base64,")
+    assert "reference photo" in body["prompt"]
+    # with items, the AI picture becomes the background of the quote banner
+    img = Image.open(io.BytesIO(client.get(f"/api/public/q/{q['token']}/picture/portrait.jpg").content))
+    assert img.size == (1080, 1350)
+    # another business's upload can't be used as a reference
+    other = signup(client, email="z@o.ae", business="Other")
+    oq = _quote(client, other).json()
+    assert client.post(f"/api/quotes/{oq['id']}/design/ai", json={"description": "x y z", "reference_id": ref["id"]}, headers=other).status_code == 422

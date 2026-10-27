@@ -3,8 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Powered, PubHeader, PubShell } from "@/components/PubHeader";
-import { SlotPicker, type Pick } from "@/components/SlotPicker";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { fmtDate, fmtDayLong, fmtTime, money, uaeDate } from "@/lib/format";
 import type { PublicQuote as PublicQuoteData } from "@/lib/types";
 import { duration } from "@/lib/vocab";
@@ -21,36 +20,19 @@ function QuoteView() {
   const [q, setQ] = useState<PublicQuoteData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"view" | "accept" | "reject">("view");
-  const [pick, setPick] = useState<Pick | null>(null);
-  const [tried, setTried] = useState<Pick | null>(params.get("taken") === "1" ? { day: "", time: "" } : null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api.get<PublicQuoteData>(`/public/q/${token}${preview ? "?preview=1" : ""}`).then(setQ).catch((e) => setError(e.message));
   }, [token, preview]);
 
-  async function accept(withTime: boolean) {
+  async function accept() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post<PublicQuoteData>(`/public/q/${token}/accept`, withTime && pick ? { day: pick.day, time: pick.time } : {});
-      if (withTime && pick && r.booking_status !== "confirmed") setTried(pick);
-      setQ(r);
+      setQ(await api.post<PublicQuoteData>(`/public/q/${token}/accept`, {}));
       setStep("view");
     } catch (e) { setError((e as Error).message); }
-    setBusy(false);
-  }
-  async function bookLater() {
-    if (!pick) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setQ(await api.post<PublicQuoteData>(`/public/q/${token}/book`, { day: pick.day, time: pick.time }));
-      setTried(null);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) { setTried(pick); setPick(null); }
-      setError((e as Error).message);
-    }
     setBusy(false);
   }
   async function reject() {
@@ -64,7 +46,6 @@ function QuoteView() {
   const cur = q.currency;
   const open = (q.status === "sent" || q.status === "viewed") && !q.expired;
   const wa = q.business.whatsapp_url ? `${q.business.whatsapp_url}?text=${encodeURIComponent(`Hi, I have a question about quotation ${q.label}.`)}` : null;
-  const slotsPath = `/public/q/${token}/slots`;
 
   return (
     <PubShell vertical={q.business.vertical}>
@@ -82,9 +63,9 @@ function QuoteView() {
       )}
       {q.status === "accepted" && q.booking_status !== "confirmed" && (
         <div className="outcome wait">
-          <span className="outcome-k">Accepted · Waiting for booking confirmation</span>
-          <b>{tried ? "That time was just taken." : "Thank you, your quotation is accepted."}</b>
-          <span>{tried ? "Pick another free time below, or" : "Choose a time below, or"} {q.business.name} will message you to arrange one.</span>
+          <span className="outcome-k">Accepted</span>
+          <b>Thank you, your quotation is accepted.</b>
+          <span>{q.business.name} will message you to arrange the time.</span>
         </div>
       )}
       {q.status === "rejected" && <div className="banner bad">You declined this quotation. Message us if you&apos;d like a revised price.</div>}
@@ -134,14 +115,12 @@ function QuoteView() {
         </div>
       )}
       {open && step === "accept" && (
-        <div className="pcard bookcard">
-          <h3 style={{ fontSize: 22 }}>{words(q.business.business_type).bookTime} <span className="opt">optional</span></h3>
-          <p className="kicker" style={{ marginTop: -4 }}>Free times for {duration(q.duration_min)}. Booked straight away if it&apos;s still free.</p>
-          <SlotPicker slotsPath={slotsPath} openDays={q.open_days} value={pick} onChange={setPick} />
-          <div className="pbtns" style={{ marginTop: 14 }}>
-            <button className="btn primary" disabled={busy || !pick} onClick={() => accept(true)}>{busy ? "Please wait…" : pick ? "Accept & book this time" : "Pick a time to book"}</button>
-            <button className="btn" disabled={busy} onClick={() => accept(false)}>Accept now, book later</button>
-            <button className="btn ghost" onClick={() => setStep("view")}>Back</button>
+        <div className="pcard" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <b>Accept quotation {q.label}?</b>
+          <span className="kicker" style={{ margin: 0 }}>{q.business.name} will message you to arrange the time.</span>
+          <div className="row2 pbtns" style={{ display: "grid" }}>
+            <button className="btn" onClick={() => setStep("view")}>Go back</button>
+            <button className="btn primary" disabled={busy} onClick={accept}>{busy ? "Please wait…" : "Yes, accept"}</button>
           </div>
         </div>
       )}
@@ -151,15 +130,6 @@ function QuoteView() {
           <div className="row2 pbtns" style={{ display: "grid" }}>
             <button className="btn" onClick={() => setStep("view")}>Go back</button>
             <button className="btn" style={{ color: "#a3392b" }} disabled={busy} onClick={reject}>Yes, decline</button>
-          </div>
-        </div>
-      )}
-      {q.status === "accepted" && q.booking_status !== "confirmed" && (
-        <div className="pcard bookcard">
-          <h3 style={{ fontSize: 22 }}>Choose a time</h3>
-          <SlotPicker slotsPath={slotsPath} openDays={q.open_days} value={pick} onChange={setPick} />
-          <div className="pbtns" style={{ marginTop: 14 }}>
-            <button className="btn primary" disabled={busy || !pick} onClick={bookLater}>{busy ? "Booking…" : "Book this time"}</button>
           </div>
         </div>
       )}
