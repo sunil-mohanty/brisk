@@ -38,6 +38,9 @@ Link page / QR  ──►  Enquiry  ──►  Appointment  ──►  Visit  �
 - **Campaign banners from the package text**: the theme (facial, nails, bridal, villa, sea view…) is read from the offer and
   sets the illustration and colours; Bold / Soft / Classic with Shuffle, free. Optional AI background photo (fal.ai or
   OpenAI, about USD 0.003 a picture) with a monthly cap per business.
+- **Pictures on client quotes** (optional): attach an image or PDF brochure from the computer (a quote can be just a
+  brochure), or make a picture from the quote (Bold / Soft / Classic, or an AI background). WhatsApp shows it as the
+  link preview; on phones "Share picture" sends the picture itself.
 - **Post campaigns to Facebook, Instagram and YouTube** from Quotes → Campaigns: each salon connects its own Page,
   Instagram and channel; the picture (with price and QR code) and an 8-second Short are made automatically; clients
   tap or scan, accept and book. Setup: [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md#posting-campaigns-to-facebook-instagram-and-youtube).
@@ -81,7 +84,7 @@ then `cd frontend && npm install && npm run dev`.
 ## Tests
 
 ```bash
-cd backend && pytest        # 70 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
+cd backend && pytest        # 76 tests: lifecycle, appointments, clashes, link page, quote booking, social posting and WhatsApp bot (Meta/Google mocked), tenant isolation
 ```
 
 ## Brand name

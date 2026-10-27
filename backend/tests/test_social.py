@@ -20,6 +20,7 @@ class FakeApis:
     def __init__(self):
         self.calls: list[tuple[str, str, dict]] = []
         self.ig_error = False
+        self.declined: set[str] = set()
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         u = req.url
@@ -31,6 +32,10 @@ class FakeApis:
         if u.host == "graph.test":
             if path.endswith("/oauth/access_token"):
                 return httpx.Response(200, json={"access_token": "long-user" if "fb_exchange_token" in q else "short-user"})
+            if path.endswith("/me/permissions"):
+                return httpx.Response(200, json={"data": [{"permission": p_, "status": "declined" if p_ in self.declined else "granted"}
+                                                          for p_ in ("pages_show_list", "pages_read_engagement", "pages_manage_posts",
+                                                                     "instagram_basic", "instagram_content_publish")]})
             if path.endswith("/me/accounts"):
                 assert q["access_token"] == "long-user"
                 return httpx.Response(200, json={"data": [{
@@ -206,3 +211,11 @@ def test_public_picture(client):
         from PIL import Image
         assert Image.open(BytesIO(r.content)).size == size
     assert client.get(f"/api/public/c/{c['token']}/image/huge.jpg").status_code == 404
+
+
+def test_missing_page_permission_is_explained(client, apis):
+    h = signup(client)
+    apis.declined = {"pages_read_engagement"}
+    _, r = _connect(client, h, "meta")
+    assert "social=error" in r.headers["location"] and "pages_read_engagement" in r.headers["location"]
+    assert client.get("/api/social", headers=h).json()["accounts"] == []

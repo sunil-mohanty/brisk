@@ -220,7 +220,7 @@ def _render_classic(c: Campaign, url: str, fmt: str = "portrait") -> bytes:
         d.rectangle([x0, arch_top + arch_w // 2, x0 + arch_w, max(arch_top + arch_w // 2, pill_cy)], fill=ACCENT_SOFT)
 
     y = top
-    d.text((W // 2, y + 12), "EXCLUSIVE OFFER" if re_ else "SPECIAL OFFER", font=body(24 if not tall else 28, True), fill=ACCENT_DEEP, anchor="mm")
+    d.text((W // 2, y + 12), getattr(c, "kicker", None) or ("EXCLUSIVE OFFER" if re_ else "SPECIAL OFFER"), font=body(24 if not tall else 28, True), fill=ACCENT_DEEP, anchor="mm")
     y += label_h
     for ln in lines:
         d.text((W // 2, y), ln, font=tf, fill=INK, anchor="ma")

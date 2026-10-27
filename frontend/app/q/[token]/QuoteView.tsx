@@ -92,13 +92,25 @@ function QuoteView() {
 
       <div className="pcard">
         <div className="kicker">Quotation {q.label}</div>
-        <h3>{q.reference || q.items.map((i) => i.description).join(" + ")}</h3>
+        <h3>{q.reference || q.items.map((i) => i.description).join(" + ") || "Your quotation"}</h3>
         <div className="pmeta">
           <div>Prepared for<b>{q.customer_name}</b></div>
           <div>Valid until<b>{fmtDate(q.valid_until)}</b></div>
         </div>
       </div>
-      <div className="pcard">
+      {q.picture_url && (
+        <div className="qpicture">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={q.picture_url} alt={`Quotation ${q.label}`} />
+        </div>
+      )}
+      {q.attachment?.is_pdf && (
+        <a className="pcard qbrochure" href={q.attachment.url} target="_blank" rel="noreferrer">
+          <span aria-hidden="true">PDF</span>
+          <span><b>{q.attachment.name}</b><small>Tap to open the brochure</small></span>
+        </a>
+      )}
+      {q.items.length > 0 && <div className="pcard">
         {q.items.map((i, n) => (
           <div className="pline" key={n}>
             <div>{i.description}<span className="q">{Number(i.quantity)} × {money(i.unit_price, cur)}</span></div>
@@ -108,7 +120,7 @@ function QuoteView() {
         {Number(q.totals.discount) > 0 && <div className="pline"><span>Discount</span><span className="mono">−{money(q.totals.discount, cur)}</span></div>}
         <div className="pline"><span>VAT {Number(q.vat_rate)}%</span><span className="mono">{money(q.totals.vat, cur)}</span></div>
         <div className="ptotal"><span>Total</span><b>{money(q.totals.total, cur)}</b></div>
-      </div>
+      </div>}
       {q.notes && <div className="pcard" style={{ fontSize: 14, whiteSpace: "pre-wrap" }}>{q.notes}</div>}
       {error && <div className="banner bad">{error}</div>}
 

@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+import random
+
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -12,7 +14,8 @@ from ..models import Business, Customer, Lead, LeadStatus, Quote, QuoteItem, Quo
 from ..pdf import quote_pdf
 from ..security import current_user
 from ..utils import new_token, normalize_phone, quote_label
-from .. import wa_bot, whatsapp
+from .. import ai_art, designer, quote_art, wa_bot, whatsapp
+from ..models import CampaignArt
 
 router = APIRouter(prefix="/quotes", tags=["quotes"])
 
@@ -56,6 +59,9 @@ def create_quote(body: s.QuoteIn, user: User = Depends(current_user), db: Sessio
         customer = lead.customer
     else:
         customer = resolve_customer(db, user.business_id, body)
+    upload = _own_upload(db, body.attachment_id, user.business_id) if body.attachment_id else None
+    if not body.items and not upload:
+        raise HTTPException(422, "Add at least one service with a price, or attach a picture or brochure.")
     token = new_token(10)
     while db.scalar(select(Quote.id).where(Quote.token == token)):
         token = new_token(10)
@@ -74,6 +80,9 @@ def create_quote(body: s.QuoteIn, user: User = Depends(current_user), db: Sessio
     )
     biz.next_quote_number += 1
     db.add(q)
+    db.flush()
+    if upload:
+        quote_art.attach(q, upload)
     set_lead_status(db, q.lead_id, LeadStatus.quoted, only_from=(LeadStatus.new, LeadStatus.contacted))
     record(db, biz.id, "quote_created", quote_label(q.number))
     db.commit()
@@ -122,6 +131,10 @@ def update_quote(quote_id: int, body: s.QuoteIn, user: User = Depends(current_us
         raise HTTPException(409, f"{quote_label(q.number)} has already been {q.status.value}. Create a new quote instead.")
     if body.customer_id or body.new_customer:
         q.customer_id = resolve_customer(db, user.business_id, body).id
+    if body.attachment_id:
+        quote_art.attach(q, _own_upload(db, body.attachment_id, user.business_id))
+    if not body.items and not q.file_id:
+        raise HTTPException(422, "Add at least one service with a price, or attach a picture or brochure.")
     q.items = _items(body.items)
     q.discount = body.discount
     if body.vat_rate is not None:
@@ -129,6 +142,60 @@ def update_quote(quote_id: int, body: s.QuoteIn, user: User = Depends(current_us
     q.valid_days = body.valid_days
     q.notes = body.notes
     q.reference = (body.reference or "").strip() or None
+    db.commit()
+    db.refresh(q)
+    return quote_out(db, q)
+
+
+def _own_upload(db: Session, art_id: int, business_id: int) -> CampaignArt:
+    a = db.get(CampaignArt, art_id)
+    if not a or a.business_id != business_id or a.kind != "upload":
+        raise HTTPException(404, "That upload wasn't found. Upload the file again.")
+    return a
+
+
+@router.post("/{quote_id}/attachment", response_model=s.QuoteOut)
+async def upload_attachment(quote_id: int, file: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Attach a picture (JPG/PNG/WebP) or PDF brochure from the computer. Replaces any picture on the quote."""
+    q = _get(db, quote_id, user.business_id)
+    quote_art.attach(q, await quote_art.read_upload(db, user.business_id, file))
+    db.commit()
+    db.refresh(q)
+    return quote_out(db, q)
+
+
+@router.patch("/{quote_id}/design", response_model=s.QuoteOut)
+def set_quote_design(quote_id: int, body: s.QuoteDesignIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """none (no picture) | bold | soft | classic | photo (needs an AI picture) | upload (needs a file); or shuffle."""
+    q = _get(db, quote_id, user.business_id)
+    a = quote_art.art(db, q)
+    if body.style:
+        if body.style == "photo" and not (a and a.kind == "ai"):
+            raise HTTPException(409, "Create an AI picture first.")
+        if body.style == "upload" and not q.file_id:
+            raise HTTPException(409, "Upload a picture or brochure first.")
+        if body.style in quote_art.BANNER_STYLES and not q.items:
+            raise HTTPException(409, "Add services to the quote to make a picture from them.")
+        q.design_style = body.style
+    if body.shuffle:
+        q.design_seed = random.randint(1, 1_000_000)
+    db.commit()
+    db.refresh(q)
+    return quote_out(db, q)
+
+
+@router.post("/{quote_id}/design/ai", response_model=s.QuoteOut)
+def make_quote_ai_art(quote_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """An AI background from the quote's services (counts against the monthly allowance)."""
+    q = _get(db, quote_id, user.business_id)
+    if not q.items:
+        raise HTTPException(409, "Add services to the quote first, so the picture knows what to show.")
+    try:
+        a = ai_art.generate(db, q.business_id, None, designer.ai_prompt(quote_art.as_offer(q)), quote_id=q.id)
+    except ai_art.ArtError as e:
+        raise HTTPException(409, str(e))
+    q.art_id, q.design_style = a.id, "photo"
+    record(db, q.business_id, "quote_ai_art", quote_label(q.number))
     db.commit()
     db.refresh(q)
     return quote_out(db, q)

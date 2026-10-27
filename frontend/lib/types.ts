@@ -126,7 +126,15 @@ export interface Quote {
   whatsapp_url: string | null;
   wa_status: "sent" | "delivered" | "read" | "failed" | null;
   wa_error: string | null;
+  design_style: "none" | "upload" | "bold" | "soft" | "classic" | "photo";
+  theme: string;
+  picture_url: string | null;
+  attachment: Attachment | null;
+  has_ai_art: boolean;
+  ai_left: number | null;
 }
+
+export interface Attachment { id: number; name: string; url: string; content_type: string; is_pdf: boolean }
 
 export interface ServiceRecord {
   id: number;
@@ -203,6 +211,8 @@ export interface PublicQuote {
   stylist: string | null;
   duration_min: number;
   open_days: number[];
+  picture_url: string | null;
+  attachment: Attachment | null;
 }
 
 export interface Slots { day: string; duration_min: number; slots: string[] }

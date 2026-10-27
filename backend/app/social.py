@@ -135,6 +135,11 @@ def _json(r: httpx.Response) -> dict:
         if isinstance(err, dict):  # Meta / Google API errors
             msg = err.get("error_user_msg") or err.get("message") or str(err)
             code = err.get("code")
+            if "must be granted" in str(msg) or code in (10, 200):  # Facebook: a Page permission is missing
+                msg = ("Facebook hasn't given Brisk permission to post on this Page. In Settings → Social media press "
+                       "Reconnect and tick every permission (Meta app: check the login configuration has pages_manage_posts, "
+                       "pages_read_engagement and pages_show_list).")
+                raise SocialError(msg, reconnect=True)
             raise SocialError(f"{msg}"[:400], reconnect=code in (190, 401) or r.status_code == 401)
         msg = (data.get("error_description") or err or r.text[:300]) if isinstance(data, dict) else r.text[:300]
         raise SocialError(str(msg)[:400], reconnect=r.status_code == 401 or err == "invalid_grant")
@@ -171,6 +176,14 @@ def finish_meta(db: Session, business_id: int, code: str) -> int:
     long = _json(client().get(f"{g}/oauth/access_token", params={
         "grant_type": "fb_exchange_token", "client_id": s.meta_app_id, "client_secret": s.meta_app_secret,
         "fb_exchange_token": short["access_token"]}))
+    # Check the person actually granted what posting needs (Meta lets them untick permissions on its screen).
+    perms = _json(client().get(f"{g}/me/permissions", params={"access_token": long["access_token"]}))
+    granted = {p.get("permission") for p in perms.get("data") or [] if p.get("status") == "granted"}
+    missing = [p for p in ("pages_show_list", "pages_read_engagement", "pages_manage_posts") if p not in granted]
+    if perms.get("data") is not None and missing:
+        raise SocialError("Facebook didn't give these permissions: " + ", ".join(missing) + ". Press Connect again and allow "
+                          "everything on Facebook's screen (choose \"Edit access\" and tick your Page). If they don't appear "
+                          "there, add them to the Meta app's login configuration first.")
     pages = _json(client().get(f"{g}/me/accounts", params={
         "access_token": long["access_token"], "limit": 50,
         "fields": "id,name,access_token,picture{url},instagram_business_account{id,username,name,profile_picture_url}"}))

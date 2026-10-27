@@ -45,7 +45,8 @@ def enabled() -> bool:
 
 def used_this_month(db: Session, business_id: int) -> int:
     start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return db.scalar(select(func.count(CampaignArt.id)).where(CampaignArt.business_id == business_id, CampaignArt.created_at >= start)) or 0
+    return db.scalar(select(func.count(CampaignArt.id)).where(CampaignArt.business_id == business_id, CampaignArt.created_at >= start,
+                                                        CampaignArt.kind == "ai")) or 0
 
 
 def left_this_month(db: Session, business_id: int) -> int | None:
@@ -89,7 +90,7 @@ def _openai(prompt: str) -> bytes:
     raise ArtError("The picture service returned no picture. Try again.")
 
 
-def generate(db: Session, business_id: int, campaign_id: int, prompt: str) -> CampaignArt:
+def generate(db: Session, business_id: int, campaign_id: int | None, prompt: str, quote_id: int | None = None) -> CampaignArt:
     """Makes one background picture (counts against this month's allowance). The caller commits."""
     s = get_settings()
     if not enabled():
@@ -110,7 +111,8 @@ def generate(db: Session, business_id: int, campaign_id: int, prompt: str) -> Ca
         im.thumbnail((1400, 2400))
     out = io.BytesIO()
     im.save(out, "JPEG", quality=88, optimize=True)
-    art = CampaignArt(business_id=business_id, campaign_id=campaign_id, data=out.getvalue(), prompt=prompt[:2000], provider=s.ai_image_provider)
+    art = CampaignArt(business_id=business_id, campaign_id=campaign_id, quote_id=quote_id, kind="ai", content_type="image/jpeg",
+                      data=out.getvalue(), prompt=prompt[:2000], provider=s.ai_image_provider)
     db.add(art)
     db.flush()
     return art

@@ -232,7 +232,7 @@ def _text_block(d, c: Campaign, ctx: Ctx, x: int, top: int, bottom: int, width: 
     gap = max(0, room - need) // 3
     y = top + gap
     cx = x + width // 2
-    label = ("EXCLUSIVE OFFER" if ctx.re_ else "SPECIAL OFFER") + f" · {ctx.theme.label.upper()}"
+    label = getattr(c, "kicker", None) or (("EXCLUSIVE OFFER" if ctx.re_ else "SPECIAL OFFER") + f" · {ctx.theme.label.upper()}")
     if align == "left":
         d.text((x, y), label, font=cr.body(24, True), fill=accent)
     else:

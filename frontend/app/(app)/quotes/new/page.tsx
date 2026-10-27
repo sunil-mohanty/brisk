@@ -12,6 +12,7 @@ import Link from "next/link";
 import { vocab } from "@/lib/vocab";
 import { Tip } from "@/components/Tips";
 import { words } from "@/lib/words";
+import { AttachField, type Picked } from "@/components/QuotePicture";
 
 interface Row { description: string; quantity: string; unit_price: string }
 const blank: Row = { description: "", quantity: "1", unit_price: "" };
@@ -25,6 +26,7 @@ function QuoteForm() {
   const params = useSearchParams();
   const leadId = params.get("lead");
   const editId = params.get("edit");
+  const [attachment, setAttachment] = useState<Picked | null>(null);
   const { business } = useSession();
   const W = words(business.business_type);
 
@@ -68,6 +70,7 @@ function QuoteForm() {
         setValidDays(String(q.valid_days));
         setNotes(q.notes ?? "");
         setReference(q.reference ?? "");
+        if (q.attachment && q.design_style === "upload") setAttachment({ id: q.attachment.id, name: q.attachment.name, is_pdf: q.attachment.is_pdf, preview: q.picture_url });
         setReady(true);
       });
     }
@@ -101,7 +104,7 @@ function QuoteForm() {
     const items = rows.filter((r) => r.description.trim() && r.unit_price !== "").map((r) => ({
       description: r.description.trim(), quantity: Number(r.quantity) || 1, unit_price: Number(r.unit_price),
     }));
-    if (!items.length) return setError("Add at least one item with a price.");
+    if (!items.length && !attachment) return setError("Add at least one item with a price, or attach a picture or brochure.");
     setBusy(true);
     setError(null);
     const body = {
@@ -112,6 +115,7 @@ function QuoteForm() {
       valid_days: Number(validDays) || 7,
       notes: notes || null,
       reference: reference.trim() || null,
+      attachment_id: attachment?.id ?? null,
     };
     try {
       const q = editId ? await api.put<Quote>(`/quotes/${editId}`, body) : await api.post<Quote>("/quotes", body);
@@ -184,6 +188,10 @@ function QuoteForm() {
           <label>Discount ({cur})<input id="discount" type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
           <label>VAT %<input id="vat" type="number" min="0" max="100" step="0.5" value={vat} onChange={(e) => setVat(e.target.value)} /></label>
           <label>Valid for (days)<input id="valid" type="number" min="1" max="365" value={validDays} onChange={(e) => setValidDays(e.target.value)} /></label>
+          <div className="full">
+            <span className="flabel">Picture or brochure <span className="hint">(optional, e.g. your price list or package flyer)</span></span>
+            <AttachField value={attachment} onChange={setAttachment} />
+          </div>
           <label className="full">Notes for your client<textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={v.quoteNotesPlaceholder} /></label>
         </div>
         <div className="totals">

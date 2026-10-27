@@ -260,12 +260,21 @@ class QuoteItemIn(BaseModel):
 
 class QuoteIn(CustomerRef):
     lead_id: int | None = None
-    items: list[QuoteItemIn] = Field(min_length=1, max_length=50)
+    items: list[QuoteItemIn] = Field(default=[], max_length=50)  # may be empty when a brochure is attached
+    attachment_id: int | None = None  # an uploaded picture / PDF brochure (POST /media)
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
     valid_days: int = Field(default=7, ge=1, le=365)
     notes: str | None = None
     reference: str | None = Field(default=None, max_length=200)
+
+
+class AttachmentOut(BaseModel):
+    id: int
+    name: str
+    url: str
+    content_type: str
+    is_pdf: bool
 
 
 class QuoteItemOut(ORM):
@@ -316,6 +325,12 @@ class QuoteOut(BaseModel):
     whatsapp_url: str | None = None
     wa_status: str | None = None  # the quote sent automatically on WhatsApp: sent | delivered | read | failed
     wa_error: str | None = None
+    design_style: str = "none"  # none | upload | bold | soft | classic | photo
+    theme: str = ""
+    picture_url: str | None = None  # the picture to send (absolute, public)
+    attachment: AttachmentOut | None = None
+    has_ai_art: bool = False
+    ai_left: int | None = None
 
 
 # ---------- services ----------
@@ -455,6 +470,8 @@ class PublicQuote(BaseModel):
     stylist: str | None = None
     duration_min: int = 60
     open_days: list[int] = []  # weekdays the salon is open (Mon=0), for the date picker
+    picture_url: str | None = None
+    attachment: AttachmentOut | None = None
 
 
 class AcceptIn(BaseModel):
@@ -900,6 +917,18 @@ class CampaignPostOut(ORM):
     error: str | None
     created_at: datetime
     posted_at: datetime | None
+
+
+class QuoteDesignIn(BaseModel):
+    style: str | None = Field(default=None, pattern="^(none|upload|classic|bold|soft|photo)$")
+    shuffle: bool = False
+
+
+class MediaOut(BaseModel):
+    id: int
+    name: str
+    content_type: str
+    is_pdf: bool
 
 
 class DesignIn(BaseModel):

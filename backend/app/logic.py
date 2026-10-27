@@ -99,7 +99,17 @@ def quote_out(db: Session, q: Quote) -> s.QuoteOut:
     live = [a for a in q.appointments if a.status.value not in ("cancelled", "no_show")]
     appt = live[0] if live else None
     msg = f"Hi {first}, here is your quotation {quote_label(q.number)} from {q.business.name}: {url}"
+    from . import ai_art, designer, quote_art
+
+    pic, att = quote_art.public_bits(db, q, owner=True)
+    a = quote_art.art(db, q)
     return s.QuoteOut(
+        design_style=q.design_style or "none",
+        theme=designer.detect(quote_art.as_offer(q)).label if q.items else "",
+        picture_url=pic,
+        attachment=att,
+        has_ai_art=bool(a and a.kind == "ai"),
+        ai_left=ai_art.left_this_month(db, q.business_id),
         id=q.id,
         number=q.number,
         label=quote_label(q.number),

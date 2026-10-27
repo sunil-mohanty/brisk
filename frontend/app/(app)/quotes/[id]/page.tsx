@@ -10,6 +10,7 @@ import { fmtDate, fmtDateTime, money, waLink } from "@/lib/format";
 import type { Quote } from "@/lib/types";
 import { Tip } from "@/components/Tips";
 import { sendQuoteWhatsApp, useWhatsApp, WA_LABEL } from "@/lib/whatsapp";
+import { QuotePicture } from "@/components/QuotePicture";
 
 export default function QuoteDetailPage() {
   return <Suspense fallback={<Loading />}><QuoteDetail /></Suspense>;
@@ -105,6 +106,7 @@ function QuoteDetail() {
             </div>
             <p className="note" style={{ marginBottom: 0 }}>Previews don't count as views. Only your client opening the link does.</p>
           </section>
+          <QuotePicture q={q} onChange={setQ} shareText={q.share_message} />
           <section className="panel">
             <h2>Items</h2>
             <div className="list">

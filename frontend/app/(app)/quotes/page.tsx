@@ -78,7 +78,7 @@ function ClientQuotes() {
               {rows.map((q) => (
                 <tr key={q.id}>
                   <td className="c-stat c-first c-label"><Link className="rowlink mono" href={`/quotes/${q.id}`}>{q.label}</Link><div className="sub">{q.kind === "campaign" ? `Campaign · ${q.campaign_title ?? ""}` : fmtDate(q.created_at)}</div></td>
-                  <td className="c-main"><b className="c-name">{q.customer.name}</b><div className="sub">{q.items.map((i) => i.description).join(", ")}</div></td>
+                  <td className="c-main"><b className="c-name">{q.customer.name}</b><div className="sub">{q.items.map((i) => i.description).join(", ") || (q.attachment ? `Brochure: ${q.attachment.name}` : "")}</div></td>
                   <td className="num c-end">{money(q.totals.total, business.currency)}</td>
                   <td className="c-stat"><QuotePill q={q} />{q.status !== "accepted" && <div className="sub">{q.view_count ? `Opened ${q.view_count}× · ${fmtDateTime(q.views[q.views.length - 1])}` : q.wa_status ? <span className={`wa-tick ${q.wa_status}`}>{WA_LABEL[q.wa_status]}</span> : "Not opened yet"}</div>}</td>
                   <td className="c-stat" data-label="Booking">

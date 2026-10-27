@@ -149,7 +149,12 @@ def _open_days(b: Business) -> list[int]:
 def _public_quote(q: Quote, db: Session | None = None) -> s.PublicQuote:
     live = [a for a in q.appointments if a.status not in (AppointmentStatus.cancelled, AppointmentStatus.no_show)]
     appt = live[0] if live else None
+    from .. import quote_art
+
+    pic, att = quote_art.public_bits(db, q) if db is not None else (None, None)
     return s.PublicQuote(
+        picture_url=pic,
+        attachment=att,
         booking_status="confirmed" if appt and q.status == QuoteStatus.accepted else q.booking_status,
         appointment_at=appt.starts_at if appt else None,
         appointment_token=appt.token if appt else None,
@@ -243,6 +248,32 @@ def book_quote(token: str, body: s.AcceptIn, db: Session = Depends(get_db)):
 @router.post("/q/{token}/reject", response_model=s.PublicQuote)
 def reject_quote(token: str, db: Session = Depends(get_db)):
     return _decide(db, token, False)
+
+
+@router.get("/q/{token}/picture/{fmt}.jpg")
+def quote_picture(token: str, fmt: str, db: Session = Depends(get_db)):
+    """The picture sent with the quote (uploaded, or drawn from the quote). Public, for WhatsApp previews."""
+    from .. import quote_art
+
+    if fmt not in creative.SIZES:
+        raise HTTPException(404, "Unknown format")
+    got = quote_art.picture(db, _quote(db, token), fmt)
+    if not got:
+        raise HTTPException(404, "This quote has no picture")
+    return Response(got[0], media_type=got[1], headers={"Cache-Control": "public, max-age=300"})
+
+
+@router.get("/q/{token}/file")
+def quote_file(token: str, db: Session = Depends(get_db)):
+    """The uploaded picture or PDF brochure, as the owner sent it."""
+    from .. import quote_art
+
+    q = _quote(db, token)
+    a = quote_art.file(db, q)
+    if not a:
+        raise HTTPException(404, "This quote has no brochure")
+    name = (a.filename or "brochure").replace('"', "")
+    return Response(a.data, media_type=a.content_type, headers={"Content-Disposition": f'inline; filename="{name}"'})
 
 
 @router.get("/q/{token}/pdf")

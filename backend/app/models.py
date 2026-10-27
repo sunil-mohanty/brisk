@@ -234,6 +234,11 @@ class Quote(Base):
     campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id", ondelete="SET NULL"), index=True)
     # After acceptance: None = not accepted yet, "awaiting" = accepted, waiting for a booking, "confirmed" = booked
     booking_status: Mapped[str | None] = mapped_column(String(20))
+    # Optional picture sent with the quote: none | upload (image or PDF brochure) | bold | soft | classic | photo (AI)
+    design_style: Mapped[str] = mapped_column(String(20), default="none", server_default="none")
+    design_seed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    art_id: Mapped[int | None] = mapped_column(ForeignKey("campaign_art.id", ondelete="SET NULL", use_alter=True, name="fk_quotes_art_id"))  # AI picture
+    file_id: Mapped[int | None] = mapped_column(ForeignKey("campaign_art.id", ondelete="SET NULL", use_alter=True, name="fk_quotes_file_id"))  # uploaded image / PDF
     # First time the owner sent it (WhatsApp, copy link, PDF). Until then it is "Ready to send".
     shared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
@@ -425,13 +430,18 @@ class Campaign(Base):
 
 
 class CampaignArt(Base):
-    """An AI-generated background picture for a campaign banner (kept, so it's paid for once)."""
+    """A picture or file for a campaign or quote: an AI background (kind "ai", paid for once and kept) or an image /
+    PDF brochure the owner uploaded (kind "upload")."""
 
     __tablename__ = "campaign_art"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
     campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE", use_alter=True, name="fk_campaign_art_campaign_id"), index=True)
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id", ondelete="CASCADE", use_alter=True, name="fk_campaign_art_quote_id"), index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="ai", server_default="ai")  # ai | upload
+    content_type: Mapped[str] = mapped_column(String(60), default="image/jpeg", server_default="image/jpeg")
+    filename: Mapped[str | None] = mapped_column(String(200))
     data: Mapped[bytes] = mapped_column(LargeBinary)
     prompt: Mapped[str] = mapped_column(Text)
     provider: Mapped[str] = mapped_column(String(30))

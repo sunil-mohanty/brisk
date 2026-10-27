@@ -1265,3 +1265,34 @@ button.slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .st-soft i { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--line-2); }
 .st-classic i { background: var(--accent); border-radius: 7px 7px 3px 3px; }
 .st-photo i { background: linear-gradient(135deg, #8fb3a3, #3a4a66); }
+
+/* Quote picture / brochure */
+.flabel { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+.attach-drop { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; border: 1.5px dashed var(--line-2); border-radius: 14px; background: var(--surface); text-align: left; }
+.attach-drop:hover { border-color: var(--accent); }
+.attach-drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.attach-drop b { font-size: 14.5px; }
+.attach-drop small, .attach-name small { color: var(--muted); font-size: 12.5px; }
+.attach-has { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.attach-has img { width: 56px; height: 70px; object-fit: cover; border-radius: 8px; flex: none; }
+.attach-pdf { width: 56px; height: 70px; border-radius: 8px; background: var(--bad-bg); color: var(--bad); display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.attach-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.attach-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qpic-grid { display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: start; }
+.qpic-preview img { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+.qpic-empty { aspect-ratio: 4 / 5; border-radius: 12px; border: 1.5px dashed var(--line-2); display: grid; place-items: center; text-align: center; padding: 14px; font-size: 12.5px; color: var(--muted); }
+.qpic-pdf { aspect-ratio: 4 / 5; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px; text-align: center; font-size: 12.5px; color: var(--fg); text-decoration: none; word-break: break-word; }
+.qpic-pdf span { width: 54px; height: 66px; border-radius: 8px; background: var(--bad-bg); color: var(--bad); display: grid; place-items: center; font-weight: 700; }
+.qpic-tools { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.qpic-tools .sp-styles { justify-content: flex-start; }
+.st-none i { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-2); }
+.st-upload i { background: var(--info-bg); box-shadow: inset 0 0 0 1px var(--info); }
+@media (max-width: 560px) { .qpic-grid { grid-template-columns: 1fr; } .qpic-preview { max-width: 240px; } }
+
+/* Client quote page: picture / brochure */
+.qpicture { border-radius: 20px; overflow: hidden; border: 1px solid var(--pub-line); background: var(--pub-card); }
+.qpicture img { width: 100%; display: block; }
+.qbrochure { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--pub-fg); }
+.qbrochure span { width: 48px; height: 60px; border-radius: 8px; background: #f7dad3; color: #a3392b; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; }
+.qbrochure b { display: block; }
+.qbrochure small { color: var(--pub-muted); }
