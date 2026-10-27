@@ -15,7 +15,7 @@ from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..logic import get_owned
 from ..models import Campaign, CampaignPost, SocialAccount, User
-from ..security import current_user
+from ..security import require_manager
 from .campaigns import campaign_expired, campaign_url
 
 router = APIRouter(tags=["social"])
@@ -27,13 +27,13 @@ def _accounts(db: Session, business_id: int) -> list[SocialAccount]:
 
 
 @router.get("/social", response_model=s.SocialStatus)
-def status(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def status(user: User = Depends(require_manager), db: Session = Depends(get_db)):
     return s.SocialStatus(meta_ready=social.meta_ready(), google_ready=social.google_ready(),
                           accounts=[s.SocialAccountOut.model_validate(a) for a in _accounts(db, user.business_id)])
 
 
 @router.post("/social/{login}/connect", response_model=s.ConnectOut)
-def connect(login: str, user: User = Depends(current_user)):
+def connect(login: str, user: User = Depends(require_manager)):
     if login not in ("meta", "google"):
         raise HTTPException(404, "Unknown service")
     if not social.ready(login):
@@ -63,7 +63,7 @@ def callback(login: str, code: str | None = None, state: str | None = None, erro
 
 
 @router.post("/social/accounts/{aid}/select", response_model=s.SocialStatus)
-def choose(aid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def choose(aid: int, user: User = Depends(require_manager), db: Session = Depends(get_db)):
     """If the owner manages several Pages, which one campaigns go to."""
     a = get_owned(db, SocialAccount, aid, user.business_id, "Account")
     for other in _accounts(db, user.business_id):
@@ -74,7 +74,7 @@ def choose(aid: int, user: User = Depends(current_user), db: Session = Depends(g
 
 
 @router.delete("/social/{login}", response_model=s.SocialStatus)
-def disconnect(login: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def disconnect(login: str, user: User = Depends(require_manager), db: Session = Depends(get_db)):
     providers = ("facebook", "instagram") if login == "meta" else ("youtube",)
     for a in _accounts(db, user.business_id):
         if a.provider in providers:
@@ -99,7 +99,7 @@ def _run(post_ids: list[int]) -> None:
 
 
 @router.post("/campaigns/{cid}/publish", response_model=list[s.CampaignPostOut], status_code=202)
-def publish(cid: int, body: s.PublishIn, tasks: BackgroundTasks, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def publish(cid: int, body: s.PublishIn, tasks: BackgroundTasks, user: User = Depends(require_manager), db: Session = Depends(get_db)):
     c = get_owned(db, Campaign, cid, user.business_id, "Campaign")
     if not c.active or campaign_expired(c):
         raise HTTPException(409, "This campaign is paused or has ended. Switch it on before posting.")
@@ -124,7 +124,7 @@ def publish(cid: int, body: s.PublishIn, tasks: BackgroundTasks, user: User = De
 
 
 @router.get("/campaigns/{cid}/posts", response_model=list[s.CampaignPostOut])
-def posts(cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def posts(cid: int, user: User = Depends(require_manager), db: Session = Depends(get_db)):
     get_owned(db, Campaign, cid, user.business_id, "Campaign")
     rows = db.scalars(select(CampaignPost).where(CampaignPost.campaign_id == cid).order_by(CampaignPost.id.desc())).all()
     return [s.CampaignPostOut.model_validate(p) for p in rows]

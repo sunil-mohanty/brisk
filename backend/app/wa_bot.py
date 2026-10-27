@@ -72,7 +72,7 @@ def _free_days(db: Session, q: Quote, limit: int = 9) -> list[tuple[date, int]]:
     out = []
     for i in range(booking.BOOK_AHEAD_DAYS + 1):
         d = today + timedelta(days=i)
-        n = len(booking.free_slots(db, q.business, d, minutes))
+        n = len(booking.free_slots(db, q.business, d, minutes, " + ".join(i.description for i in q.items)))
         if n:
             out.append((d, n))
         if len(out) >= limit:
@@ -102,7 +102,7 @@ def offer_days(db: Session, q: Quote, to: str, intro: str) -> None:
 
 def offer_times(db: Session, q: Quote, to: str, d: date, intro: str = "") -> None:
     minutes = booking.quote_duration(db, q)
-    slots = booking.free_slots(db, q.business, d, minutes)
+    slots = booking.free_slots(db, q.business, d, minutes, " + ".join(i.description for i in q.items))
     if not slots:
         offer_days(db, q, to, (intro + " " if intro else "") + f"{_day_title(d)} is now fully booked.")
         return

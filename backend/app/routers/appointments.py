@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from .. import schemas as s
+from .. import staff
 from ..activity import UAE, record
 from ..db import get_db
 from ..logic import appointment_out, appointment_url, get_owned, resolve_customer, set_lead_status
@@ -30,6 +31,57 @@ router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 # These no longer hold the chair, so they never clash with a new booking.
 FREE_STATUSES = (AppointmentStatus.cancelled, AppointmentStatus.no_show)
+
+
+# ---------------------------------------------------------------- staff logins
+def _out(user: User, a: Appointment) -> s.AppointmentOut:
+    """Appointment for this login; staff without the "phones" permission don't see client numbers."""
+    o = appointment_out(a)
+    if not staff.can(user, "phones"):
+        o.customer.phone = None
+        o.customer.email = None
+    return o
+
+
+def _see(user: User, a: Appointment) -> Appointment:
+    """Staff without "diary_all" only see their own appointments."""
+    if not staff.can(user, "diary_all") and a.stylist_id != user.stylist_id:
+        raise HTTPException(404, "Appointment not found")
+    return a
+
+
+def _may_book(user: User, stylist_id: int | None) -> None:
+    if not staff.can(user, "book"):
+        raise HTTPException(403, "Your login doesn't include booking. Ask the owner.")
+    if not staff.can(user, "diary_all") and stylist_id != user.stylist_id:
+        raise HTTPException(403, "You can only book appointments for yourself.")
+
+
+def _unavailable(db: Session, b, st: Stylist, start: datetime, minutes: int, service: str) -> HTTPException | None:
+    """Off that day, on leave, outside their hours, or doesn't do the service: the owner can still book anyway."""
+    day = _aware(start).astimezone(UAE).date()
+    menu = staff.Menu.load(db, b.id)
+    why = staff.why_not(st, b, _aware(start), minutes, menu.needs(service), staff.on_leave_ids(db, b.id, day), menu)
+    if why:
+        return HTTPException(409, {"code": "clash", "message": f"{st.name}: {why}."})
+    return None
+
+
+def auto_assign(db: Session, b, start: datetime, minutes: int, service: str) -> Stylist | None:
+    """The best free person for a booking: working, not on leave, does the service, no clash, least busy that day."""
+    start = _aware(start)
+    day = start.astimezone(UAE).date()
+    menu = staff.Menu.load(db, b.id)
+    needs, leave = menu.needs(service), staff.on_leave_ids(db, b.id, day)
+    team = db.scalars(select(Stylist).where(Stylist.business_id == b.id, Stylist.active.is_(True)).order_by(Stylist.position, Stylist.id)).all()
+    lo, hi = _day_bounds(day)
+    load: dict[int, int] = {}
+    for a in db.scalars(select(Appointment).where(Appointment.business_id == b.id, Appointment.starts_at >= lo, Appointment.starts_at < hi,
+                                                  Appointment.status.not_in(FREE_STATUSES))):
+        if a.stylist_id:
+            load[a.stylist_id] = load.get(a.stylist_id, 0) + a.duration_min
+    ok = [m for m in team if not staff.why_not(m, b, start, minutes, needs, leave) and not _clash(db, b.id, m.id, start, minutes)]
+    return min(ok, key=lambda m: (load.get(m.id, 0), m.position, m.id)) if ok else None
 _LOAD = (joinedload(Appointment.customer), joinedload(Appointment.stylist))
 
 
@@ -122,11 +174,13 @@ def list_appointments(
     )
     if customer_id is not None:
         stmt = select(Appointment).where(Appointment.business_id == user.business_id, Appointment.customer_id == customer_id).options(*_LOAD).order_by(Appointment.starts_at.desc())
+    if not staff.can(user, "diary_all"):
+        stylist_id = user.stylist_id or -1
     if stylist_id is not None:
         stmt = stmt.where(Appointment.stylist_id == stylist_id)
     if status is not None:
         stmt = stmt.where(Appointment.status == status)
-    return [appointment_out(a) for a in db.scalars(stmt).unique()]
+    return [_out(user, a) for a in db.scalars(stmt).unique()]
 
 
 @router.post("", response_model=s.AppointmentOut, status_code=201)
@@ -142,12 +196,24 @@ def create_appointment(body: s.AppointmentIn, user: User = Depends(current_user)
         customer = quote.customer
     else:
         customer = resolve_customer(db, bid, body)
-    stylist = _check_stylist(db, bid, body.stylist_id)
+    if not staff.is_manager(user):
+        _may_book(user, body.stylist_id if body.stylist_id is not None else user.stylist_id)
+        if body.stylist_id is None and not body.auto_assign:
+            body.stylist_id = user.stylist_id
     starts = _aware(body.starts_at)
+    if body.auto_assign and body.stylist_id is None:
+        picked = auto_assign(db, user.business, starts, body.duration_min, body.service)
+        if not picked and not body.force:
+            raise HTTPException(409, {"code": "clash", "message": "Nobody on the team is free for that service at that time."})
+        body.stylist_id = picked.id if picked else None
+    stylist = _check_stylist(db, bid, body.stylist_id)
     if stylist and not body.force:
         other = _clash(db, bid, stylist.id, starts, body.duration_min)
         if other:
             raise _clash_error(other, stylist)
+        err = _unavailable(db, user.business, stylist, starts, body.duration_min, body.service)
+        if err:
+            raise err
     token = new_token(10)
     while db.scalar(select(Appointment.id).where(Appointment.token == token)):
         token = new_token(10)
@@ -174,19 +240,24 @@ def create_appointment(body: s.AppointmentIn, user: User = Depends(current_user)
     record(db, bid, "appointment_booked")
     db.commit()
     db.refresh(a)
-    return appointment_out(a)
+    return _out(user, a)
 
 
 @router.get("/{appointment_id}", response_model=s.AppointmentOut)
 def get_appointment(appointment_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    return appointment_out(get_owned(db, Appointment, appointment_id, user.business_id, "Appointment"))
+    return _out(user, _see(user, get_owned(db, Appointment, appointment_id, user.business_id, "Appointment")))
 
 
 @router.patch("/{appointment_id}", response_model=s.AppointmentOut)
 def update_appointment(appointment_id: int, body: s.AppointmentUpdate, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    a = get_owned(db, Appointment, appointment_id, user.business_id, "Appointment")
+    a = _see(user, get_owned(db, Appointment, appointment_id, user.business_id, "Appointment"))
     changes = body.model_dump(exclude_unset=True)
     force = changes.pop("force", False)
+    if not staff.is_manager(user):
+        if a.stylist_id != user.stylist_id and not staff.can(user, "book"):
+            raise HTTPException(403, "You can only update your own appointments.")
+        if set(changes) - {"status", "notes"}:  # moving or changing a booking
+            _may_book(user, changes.get("stylist_id", a.stylist_id))
     if a.status == AppointmentStatus.completed and set(changes) - {"notes"}:
         raise HTTPException(409, "This appointment is finished. Change the visit record instead.")
     if changes.get("status") == AppointmentStatus.completed:
@@ -208,6 +279,11 @@ def update_appointment(appointment_id: int, body: s.AppointmentUpdate, user: Use
         if other:
             db.rollback()
             raise _clash_error(other, db.get(Stylist, a.stylist_id))
+        if moved:
+            err = _unavailable(db, user.business, db.get(Stylist, a.stylist_id), a.starts_at, a.duration_min, a.service)
+            if err:
+                db.rollback()
+                raise err
     if "starts_at" in changes and a.status == AppointmentStatus.confirmed:
         a.status = AppointmentStatus.booked  # new time needs confirming again
         a.confirmed_at = None
@@ -217,13 +293,15 @@ def update_appointment(appointment_id: int, body: s.AppointmentUpdate, user: Use
         record(db, user.business_id, f"appointment_{changes['status'].value}")
     db.commit()
     db.refresh(a)
-    return appointment_out(a)
+    return _out(user, a)
 
 
 @router.post("/{appointment_id}/complete", response_model=s.AppointmentOut)
 def complete_appointment(appointment_id: int, body: s.AppointmentCompleteIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Finishes the job: records the visit (with the client's history link) and sets the rebook reminder."""
-    a = get_owned(db, Appointment, appointment_id, user.business_id, "Appointment")
+    a = _see(user, get_owned(db, Appointment, appointment_id, user.business_id, "Appointment"))
+    if not staff.is_manager(user) and a.stylist_id != user.stylist_id and not staff.can(user, "book"):
+        raise HTTPException(403, "You can only finish your own appointments.")
     if a.status == AppointmentStatus.completed:
         raise HTTPException(409, "This appointment is already finished")
     if a.status in FREE_STATUSES:
@@ -256,7 +334,7 @@ def complete_appointment(appointment_id: int, body: s.AppointmentCompleteIn, use
     record(db, user.business_id, "service_recorded")
     db.commit()
     db.refresh(a)
-    return appointment_out(a)
+    return _out(user, a)
 
 
 @router.post("/{appointment_id}/message", response_model=s.MessageLinkOut)
@@ -267,7 +345,9 @@ def message(
     db: Session = Depends(get_db),
 ):
     """A ready-to-send WhatsApp message to the client. The owner taps it to send from their own phone."""
-    a = get_owned(db, Appointment, appointment_id, user.business_id, "Appointment")
+    a = _see(user, get_owned(db, Appointment, appointment_id, user.business_id, "Appointment"))
+    if not staff.can(user, "phones"):
+        raise HTTPException(403, "Your login doesn't include client numbers. Ask the owner.")
     first = a.customer.name.split()[0] if a.customer.name else ""
     biz = user.business.name
     when = local_when(a.starts_at)
@@ -292,7 +372,9 @@ def message(
 
 @router.delete("/{appointment_id}", status_code=204)
 def delete_appointment(appointment_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    a = get_owned(db, Appointment, appointment_id, user.business_id, "Appointment")
+    a = _see(user, get_owned(db, Appointment, appointment_id, user.business_id, "Appointment"))
+    if not staff.is_manager(user):
+        _may_book(user, a.stylist_id)
     if a.status == AppointmentStatus.completed:
         raise HTTPException(409, "Finished appointments are kept as part of the client's history")
     db.delete(a)

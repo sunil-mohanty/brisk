@@ -16,6 +16,25 @@ import { BriskMark } from "@/components/Logo";
 type IconName = keyof typeof Icon;
 type NavItem = [href: string, label: string, icon: IconName];
 
+/** A staff login sees their own day and diary, plus clients if the owner allows it. */
+function staffGroups(perms: string[], w: Words): [string, NavItem[]][] {
+  const clients = perms.includes("clients");
+  return [
+    ["My work", [
+      ["/me", "My day", "today"],
+      ["/appointments", perms.includes("diary_all") ? w.Appointments : `My ${w.appointments}`, "appointments"],
+    ]],
+    ...(clients ? ([["Clients", [
+      ["/customers", "Clients", "customers"],
+      ["/leads", "Enquiries", "enquiries"],
+      ["/quotes", "Quotes", "quotes"],
+      ["/services", w.Visits, "visits"],
+    ]]] as [string, NavItem[]][]) : []),
+  ];
+}
+const STAFF_PATHS = ["/me", "/appointments"];
+const CLIENT_PATHS = ["/customers", "/leads", "/quotes", "/services"];
+
 function groups(linkPage: boolean, w: Words): [string, NavItem[]][] {
   return [
     ["Overview", [
@@ -36,6 +55,12 @@ function groups(linkPage: boolean, w: Words): [string, NavItem[]][] {
     ]],
   ];
 }
+
+const staffTabs = (perms: string[], w: Words): NavItem[] => [
+  ["/me", "My day", "today"],
+  ["/appointments", w.diary, "appointments"],
+  ...(perms.includes("clients") ? ([["/customers", "Clients", "customers"], ["/quotes", "Quotes", "quotes"]] as NavItem[]) : []),
+];
 
 const tabs = (w: Words): NavItem[] => [
   ["/dashboard", "Today", "today"],
@@ -72,6 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .get<AuthResponse>("/me")
       .then(({ user, business }) => {
         setSession({ user, business });
+        if (user.role === "staff" && window.location.pathname.startsWith("/dashboard")) router.replace("/me");
         document.documentElement.dataset.vertical = words(business.business_type).vertical;
         setTimeout(() => ["/leads", "/quotes", "/services", "/customers", "/team", "/catalog", "/inventory"].forEach(api.prefetch), 300);
       })
@@ -79,6 +105,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   if (!session) return <div className="empty" style={{ paddingTop: 80 }}>Loading…</div>;
+  const isStaff = session.user.role === "staff";
+  const perms = session.user.permissions ?? [];
+  if (isStaff && ![...STAFF_PATHS, ...(perms.includes("clients") ? CLIENT_PATHS : [])].some((p) => path.startsWith(p))) {
+    if (typeof window !== "undefined") setTimeout(() => router.replace("/me"), 0);
+    return <div className="empty" style={{ paddingTop: 80 }}>Loading…</div>;
+  }
 
   const signOut = () => {
     auth.clear();
@@ -89,8 +121,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const b = session.business;
   const w = words(b.business_type);
   const vertical = w.vertical;
-  const TABS = tabs(w);
-  const nav = groups(b.link_page_enabled, w);
+  const TABS = isStaff ? staffTabs(perms, w) : tabs(w);
+  const nav = isStaff ? staffGroups(perms, w) : groups(b.link_page_enabled, w);
   const moreItems = nav.flatMap(([, items]) => items).filter(([href]) => !TABS.some(([t]) => t === href));
   const moreActive = moreItems.some(([href]) => here(href)) || here("/settings") || here("/qr");
   const initial = (b.name.trim()[0] || "S").toUpperCase();
@@ -101,7 +133,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <TipsProvider initialSeen={session.user.seen_tips ?? []}>
       <div className="app" data-vertical={vertical}>
         <aside className="side" aria-label="Main">
-          <Link href="/dashboard" className="side-brand" aria-label={`${site.name} home`}>
+          <Link href={isStaff ? "/me" : "/dashboard"} className="side-brand" aria-label={`${site.name} home`}>
             <BriskMark size={42} tile={vertical === "salon" ? "#fff" : "var(--accent)"} ink={vertical === "salon" ? "var(--side)" : "#fff"} spark="var(--spark, #d4704a)" />
             <span>{site.name}</span>
           </Link>
@@ -118,8 +150,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="side-foot" ref={menuRef}>
             {menu && (
               <div className="side-menu" role="menu">
-                <Link role="menuitem" href="/settings">{Icon.settings()}{w.profile}</Link>
-                <Link role="menuitem" href="/qr">{Icon.qr()}QR codes</Link>
+                {isStaff ? <Link role="menuitem" href="/me#account">{Icon.settings()}My login</Link> : <>
+                  <Link role="menuitem" href="/settings">{Icon.settings()}{w.profile}</Link>
+                  <Link role="menuitem" href="/qr">{Icon.qr()}QR codes</Link>
+                </>}
                 {session.user.is_admin && <Link role="menuitem" href="/admin">{Icon.admin()}{site.name} admin</Link>}
                 {help && <a role="menuitem" href={help} target="_blank" rel="noreferrer">{Icon.help()}Help on WhatsApp</a>}
                 <div className="side-tips"><TipsSwitch /></div>
@@ -128,7 +162,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             <button type="button" className="side-salon" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu(!menu)}>
               <span className="side-av" aria-hidden="true">{initial}</span>
-              <span className="side-salon-t"><b>{b.name}</b><span>{area}</span></span>
+              <span className="side-salon-t"><b>{b.name}</b><span>{isStaff || session.user.role === "manager" ? `${session.user.name} · ${session.user.role}` : area}</span></span>
             </button>
           </div>
         </aside>
@@ -140,9 +174,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {TABS.map(([href, label, icon]) => (
           <Link key={href} href={href} aria-current={here(href) ? "page" : undefined}>{Icon[icon]()}<span>{label}</span></Link>
         ))}
-        <Tip id="nav.more" order={90} text={`Clients, ${w.staff}, ${w.visits}, ${w.services}${w.inventory ? ", inventory" : ""} and your ${w.business} profile are in here.`}>
+        {isStaff ? (
           <button type="button" aria-expanded={more} aria-current={moreActive ? "page" : undefined} onClick={() => setMore(true)}>{Icon.more()}<span>More</span></button>
-        </Tip>
+        ) : (
+          <Tip id="nav.more" order={90} text={`Clients, ${w.staff}, ${w.visits}, ${w.services}${w.inventory ? ", inventory" : ""} and your ${w.business} profile are in here.`}>
+            <button type="button" aria-expanded={more} aria-current={moreActive ? "page" : undefined} onClick={() => setMore(true)}>{Icon.more()}<span>More</span></button>
+          </Tip>
+        )}
       </nav>
       {more && (
         <div className="moresheet" role="dialog" aria-modal="true" aria-label="More" onClick={() => setMore(false)}>
@@ -151,8 +189,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {moreItems.map(([href, label, icon]) => (
               <Link key={href} href={href} aria-current={here(href) ? "page" : undefined} onClick={() => setMore(false)}>{Icon[icon]()}{label}</Link>
             ))}
-            <Link href="/settings" aria-current={here("/settings") ? "page" : undefined} onClick={() => setMore(false)}>{Icon.settings()}{w.profile}</Link>
-            <Link href="/qr" aria-current={here("/qr") ? "page" : undefined} onClick={() => setMore(false)}>{Icon.qr()}QR codes</Link>
+            {isStaff ? <Link href="/me#account" onClick={() => setMore(false)}>{Icon.settings()}My login</Link> : <>
+              <Link href="/settings" aria-current={here("/settings") ? "page" : undefined} onClick={() => setMore(false)}>{Icon.settings()}{w.profile}</Link>
+              <Link href="/qr" aria-current={here("/qr") ? "page" : undefined} onClick={() => setMore(false)}>{Icon.qr()}QR codes</Link>
+            </>}
             {session.user.is_admin && <Link href="/admin" className="adm" onClick={() => setMore(false)}>{Icon.admin()}{site.name} admin</Link>}
             {help && <a href={help} target="_blank" rel="noreferrer">{Icon.help()}Help on WhatsApp</a>}
             <button type="button" onClick={signOut}>{Icon.signout()}Sign out</button>

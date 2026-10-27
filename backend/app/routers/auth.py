@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import schemas as s
+from .. import staff
 from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..email import password_reset_email, send_email
@@ -14,6 +15,7 @@ from ..activity import record, touch, uae_today
 from ..logic import unique_slug
 from ..models import Business, InviteCode, User
 from ..security import (
+    require_manager,
     create_reset_token,
     create_token,
     current_user,
@@ -30,7 +32,8 @@ router = APIRouter(tags=["auth"])
 def _auth(user: User) -> s.AuthOut:
     return s.AuthOut(
         token=create_token(user),
-        user=s.UserOut(id=user.id, name=user.name, email=user.email, is_admin=is_admin(user), seen_tips=_tips(user)),
+        user=s.UserOut(id=user.id, name=user.name, email=user.email, is_admin=is_admin(user), seen_tips=_tips(user),
+                       role=staff.role(user), permissions=staff.permissions_of(user), stylist_id=user.stylist_id),
         business=s.BusinessOut.model_validate(user.business),
     )
 
@@ -125,6 +128,8 @@ def login(body: s.LoginIn, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(func.lower(User.email) == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(401, "Email or password is incorrect")
+    if user.role == "staff" and not (user.stylist and user.stylist.active):
+        raise HTTPException(403, "This staff login was switched off. Ask the owner.")
     if user.business.status == "suspended" and not is_admin(user):
         raise HTTPException(403, SUSPENDED_MESSAGE)
     record(db, user.business_id, "login")
@@ -179,6 +184,16 @@ def me(user: User = Depends(current_user)):
     return _auth(user)
 
 
+@router.post("/me/password", response_model=s.AuthOut)
+def change_password(body: s.ChangePasswordIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Change your own password (e.g. the one-time password a staff member was given). Other sessions sign out."""
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(422, "Your current password is incorrect.")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return _auth(user)
+
+
 @router.post("/me/tips", response_model=list[str])
 def tips_seen(body: s.TipsIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Remembers which first-time tips were dismissed (or clears them for "Show tips again")."""
@@ -200,7 +215,7 @@ def get_business(user: User = Depends(current_user)):
 
 
 @router.patch("/business", response_model=s.BusinessOut)
-def update_business(body: s.BusinessUpdate, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def update_business(body: s.BusinessUpdate, user: User = Depends(require_manager), db: Session = Depends(get_db)):
     biz = user.business
     changes = body.model_dump(exclude_unset=True)
     if "business_type" in changes:

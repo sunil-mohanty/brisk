@@ -48,7 +48,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       const res = await api.post<AuthResponse>(mode === "login" ? "/auth/login" : "/auth/signup", body);
       auth.set(res.token);
       if (mode === "signup") trackSignup();
-      router.replace("/dashboard");
+      router.replace(res.user.role === "staff" ? "/me" : "/dashboard");
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

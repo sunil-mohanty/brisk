@@ -78,6 +78,9 @@ Then on your domain:
 3. **Settings → Service menu** → tap "Add all" for the starter menu, then fix the prices.
 4. **Team** → add yourself and your stylists. **Appointments** → book a test client and send the WhatsApp confirmation.
 
+Staff logins: owners give each staff member a login from Staff → their profile → App access. The login link in that
+message comes from `APP_URL`, so set it to your real address. Staff sign in at the same `/login` page and land on "My day".
+
 Demo data is for your laptop, not production: `python -m app.seed` locally gives you `demo@tressa.app` / `demo12345`
 and a demo link page at `/layla-beauty`.
 
@@ -96,7 +99,7 @@ Push the new code. The `api` service runs database migrations on start, so the l
 and the link-page switch. Existing data is kept, and quotes already accepted are marked
 "booked" (if they have an appointment) or "awaiting booking".
 
-Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) and `0008_categories` (your own client categories, up to 4). This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
+Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) and `0009_staff` (staff profiles, logins and roles, attendance, leave and commission). This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
 `pillow`, `cryptography` and `imageio-ffmpeg` to the api, installed automatically on deploy.
 The WhatsApp part (`0003_whatsapp`) adds (a log of incoming WhatsApp messages and
 delivery ticks). Nothing changes until you add the WhatsApp variables (see below).

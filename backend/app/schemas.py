@@ -97,12 +97,20 @@ class MessageOut(BaseModel):
     message: str
 
 
+class ChangePasswordIn(BaseModel):
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 class UserOut(ORM):
     id: int
     name: str
     email: str
     is_admin: bool = False
     seen_tips: list[str] = []
+    role: str = "owner"  # owner | manager | staff
+    permissions: list[str] = []
+    stylist_id: int | None = None  # a staff login's own staff profile
 
 
 class TipsIn(BaseModel):
@@ -618,6 +626,229 @@ class StylistOut(ORM):
     position: int
 
 
+# ---------- staff management ----------
+HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class StaffIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    role: str | None = Field(default=None, max_length=80)  # job title: "Senior stylist", "Agent"
+    phone: str | None = Field(default=None, max_length=40)
+    email: EmailStr | None = None
+    joined_on: date | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    on_page: bool = True
+
+
+class StaffUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    role: str | None = Field(default=None, max_length=80)
+    phone: str | None = Field(default=None, max_length=40)
+    email: EmailStr | None = None
+    joined_on: date | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    on_page: bool | None = None
+    active: bool | None = None
+    skill_ids: list[int] | None = Field(default=None, max_length=500)
+    # "0".."6" (Mon..Sun) -> ["10:00", "19:00"] or null for a day off. {} = the salon's opening hours.
+    working_hours: dict[str, list[str] | None] | None = None
+    commission_rate: Decimal | None = Field(default=None, ge=0, le=100)
+    commission_by_category: dict[str, Decimal | None] | None = None
+
+
+class StaffAccessIn(BaseModel):
+    email: EmailStr
+    role: str = Field(default="staff", pattern="^(staff|manager)$")
+
+
+class StaffPermissionsIn(BaseModel):
+    permissions: list[str] = Field(max_length=10)
+
+
+class StaffLoginOut(BaseModel):
+    email: str
+    role: str
+    password: str | None = None  # only right after it's created or reset
+    login_url: str
+    whatsapp_url: str | None = None
+
+
+class StaffToday(BaseModel):
+    status: str  # working | present | late | absent | leave | off | upcoming
+    hours: list[str] | None  # ["10:00", "19:00"] or None for a day off
+    clock_in: datetime | None = None
+    clock_out: datetime | None = None
+    appointments: int = 0
+
+
+class StaffOut(BaseModel):
+    id: int
+    name: str
+    role: str | None
+    color: str
+    on_page: bool
+    active: bool
+    position: int
+    phone: str | None
+    email: str | None
+    joined_on: date | None
+    notes: str | None
+    skill_ids: list[int]
+    working_hours: dict[str, list[str] | None]  # always filled in, Mon..Sun
+    custom_hours: bool  # False = following the salon's opening hours
+    commission_rate: Decimal
+    commission_by_category: dict[str, Decimal | None]
+    permissions: list[str]
+    login_email: str | None
+    login_role: str | None  # staff | manager | None (no login)
+    today: StaffToday | None = None
+
+
+class StaffListOut(BaseModel):
+    staff: list[StaffOut]
+    pending_leave: int
+    permissions: dict[str, str]  # id -> what it allows
+    categories: list[str]  # menu categories, for commission by category
+
+
+class AvailabilityOut(BaseModel):
+    stylist_id: int
+    name: str
+    color: str
+    ok: bool
+    reason: str | None = None  # "On leave", "Day off", "Works 10:00–19:00", "Busy with Sara (Haircut)"
+
+
+class AttendanceDay(BaseModel):
+    day: date
+    status: str
+    clock_in: datetime | None = None
+    clock_out: datetime | None = None
+    minutes: int = 0
+    note: str | None = None
+    edited: bool = False
+    hours: list[str] | None = None
+
+
+class AttendanceRow(BaseModel):
+    stylist_id: int
+    name: str
+    color: str
+    days: list[AttendanceDay]
+    worked_minutes: int
+    late: int
+    absent: int
+    leave: int
+
+
+class AttendanceFixIn(BaseModel):
+    clock_in: str | None = Field(default=None, pattern=HHMM)
+    clock_out: str | None = Field(default=None, pattern=HHMM)
+    absent: bool = False
+    note: str | None = Field(default=None, max_length=200)
+
+
+class ClockIn(BaseModel):
+    action: str = Field(pattern="^(in|out)$")
+
+
+class LeaveIn(BaseModel):
+    kind: str = Field(default="annual", pattern="^(annual|sick|unpaid|other)$")
+    start_date: date
+    end_date: date
+    reason: str | None = Field(default=None, max_length=300)
+    stylist_id: int | None = None  # owner adding leave for someone
+
+
+class LeaveDecisionIn(BaseModel):
+    approve: bool
+    reply: str | None = Field(default=None, max_length=300)
+
+
+class LeaveOut(BaseModel):
+    id: int
+    stylist_id: int
+    name: str
+    color: str
+    kind: str
+    start_date: date
+    end_date: date
+    days: int
+    reason: str | None
+    status: str
+    reply: str | None
+    created_at: datetime
+    decided_at: datetime | None
+    clashes: int = 0  # booked appointments during the leave, to move to someone else
+
+
+class CommissionLine(BaseModel):
+    category: str
+    sales: Decimal  # before VAT
+    rate: Decimal
+    commission: Decimal
+
+
+class CommissionRow(BaseModel):
+    stylist_id: int
+    name: str
+    color: str
+    services: int
+    sales: Decimal  # paid by clients, with VAT
+    net_sales: Decimal  # before VAT; commission is worked out on this
+    commission: Decimal
+    lines: list[CommissionLine]
+
+
+class CommissionOut(BaseModel):
+    start: date
+    end: date
+    rows: list[CommissionRow]
+    total_sales: Decimal
+    total_commission: Decimal
+    vat_rate: Decimal
+    unassigned_sales: Decimal  # finished appointments with nobody assigned
+
+
+class PerformanceRow(BaseModel):
+    stylist_id: int
+    name: str
+    color: str
+    booked: int
+    completed: int
+    no_shows: int
+    cancelled: int
+    sales: Decimal
+    avg_ticket: Decimal
+    commission: Decimal
+    clients: int
+    repeat_clients: int
+    booked_hours: float
+    scheduled_hours: float
+    utilisation: int  # % of working hours that were booked
+    worked_hours: float
+    late: int
+    absent: int
+    leave_days: int
+
+
+class PerformanceOut(BaseModel):
+    start: date
+    end: date
+    rows: list[PerformanceRow]
+
+
+class MyDayOut(BaseModel):
+    staff: StaffOut
+    today: StaffToday
+    appointments: list["AppointmentOut"]
+    leave: list[LeaveOut]
+    earnings: CommissionOut | None = None  # this month, if the owner allows it
+    week: dict[str, list[str] | None]
+
+
 # ---------- appointments (jobs) ----------
 class AppointmentIn(CustomerRef):
     service: str = Field(min_length=1, max_length=300)
@@ -631,6 +862,7 @@ class AppointmentIn(CustomerRef):
     address: str | None = Field(default=None, max_length=300)
     notes: str | None = None
     force: bool = False  # book even if the stylist is already busy
+    auto_assign: bool = False  # no stylist chosen: give it to the best free person
 
 
 class AppointmentUpdate(BaseModel):
@@ -1075,3 +1307,4 @@ class OutboundOut(ORM):
 
 DashboardOut.model_rebuild()
 PublicLanding.model_rebuild()
+MyDayOut.model_rebuild()

@@ -218,12 +218,72 @@ def main() -> None:
         db.flush()
         db.add(StockMove(business_id=biz.id, item_id=item.id, change=Decimal(stock), reason="received", note="Opening stock"))
 
+    seed_staff(db, biz, team, cs, today)
+
     # A week of link page activity
     for d in range(7):
         for kind, n in (("view", 18 + d * 3), ("whatsapp", 4 + d % 3), ("instagram", 3), ("book", d % 2), ("link", 2)):
             db.add_all([LinkClick(business_id=biz.id, kind=kind, created_at=ago(d, 9 + i % 12)) for i in range(n)])
     db.commit()
     print(f"Demo data loaded. Sign in with {EMAIL} / {PASSWORD}. Link page: /layla-beauty")
+
+
+STAFF_EMAIL = "staff@tressa.app"
+
+
+def seed_staff(db, biz: Business, team: list, cs: list, today: date) -> None:
+    """Staff profiles, skills, hours, commission, three weeks of attendance and finished work, leave, and a staff login."""
+    from .models import Attendance, LeaveRequest
+
+    def at(day: date, hh: int, mm: int = 0) -> datetime:
+        return datetime.combine(day, time(hh, mm), tzinfo=UAE)
+
+    menu = {c.name: c for c in db.scalars(select(CatalogItem).where(CatalogItem.business_id == biz.id))}
+    ids = lambda *cats: sorted(c.id for c in menu.values() if c.category in cats)  # noqa: E731
+    maya, karim, joy = team
+    week = lambda a, z, off=(): {str(d): (None if d in off else [a, z]) for d in range(7)}  # noqa: E731
+    maya.phone, maya.joined_on, maya.skill_ids = "+971 50 441 7781", today - timedelta(days=900), ids("Hair", "Colour", "Skin", "Bridal")
+    maya.working_hours, maya.commission_rate, maya.commission_by_category = week("10:00", "20:00", (6,)), Decimal(15), {"Colour": 25, "Bridal": 20}
+    karim.phone, karim.joined_on, karim.skill_ids = "+971 55 300 1902", today - timedelta(days=420), [menu["Men's haircut"].id, menu["Beard trim & shape"].id, menu["Threading – full face"].id]
+    karim.working_hours, karim.commission_rate = week("12:00", "22:00", (1,)), Decimal(25)
+    joy.phone, joy.joined_on, joy.skill_ids = "+971 56 812 4410", today - timedelta(days=210), ids("Nails", "Grooming")
+    joy.working_hours, joy.commission_rate, joy.commission_by_category = week("10:00", "19:00", (5,)), Decimal(15), {"Nails": 30}
+    joy.permissions, karim.permissions, maya.permissions = ["phones", "earnings"], ["phones", "earnings"], ["phones", "earnings", "diary_all", "book"]
+    db.add(User(business_id=biz.id, email=STAFF_EMAIL, name=joy.name, password_hash=hash_password(PASSWORD), role="staff", stylist_id=joy.id))
+    db.flush()
+
+    # Leave: Karim was off sick, Joy has asked for a long weekend
+    db.add(LeaveRequest(business_id=biz.id, stylist_id=karim.id, kind="sick", start_date=today - timedelta(days=6), end_date=today - timedelta(days=6),
+                        reason="Fever", status="approved", decided_at=datetime.now(timezone.utc) - timedelta(days=6)))
+    db.add(LeaveRequest(business_id=biz.id, stylist_id=joy.id, kind="annual", start_date=today + timedelta(days=9), end_date=today + timedelta(days=11),
+                        reason="Sister's wedding in Manila", status="pending"))
+
+    # Three weeks of attendance (a few late arrivals, one missed day) and finished work
+    jobs = {maya: [("Women's cut & blow-dry", 180, 60), ("Root colour", 220, 90), ("Blow-dry & styling", 90, 45), ("Balayage", 650, 180), ("Classic facial", 250, 60)],
+            karim: [("Men's haircut", 70, 30), ("Men's haircut + Beard trim & shape", 120, 45), ("Beard trim & shape", 50, 20)],
+            joy: [("Gel manicure", 90, 45), ("Gel pedicure", 120, 60), ("Gel manicure + Gel pedicure", 210, 105), ("Threading – full face", 60, 20)]}
+    n = 0
+    for back in range(21, 0, -1):
+        d = today - timedelta(days=back)
+        for k, st in enumerate(team):
+            span = st.working_hours.get(str(d.weekday()))
+            if not span or (st is karim and back == 6):
+                continue
+            h0 = int(span[0][:2])
+            if st is joy and back == 12:
+                db.add(Attendance(business_id=biz.id, stylist_id=st.id, day=d, absent=True, note="No show, no call", edited=True))
+                continue
+            late = (back + k * 3) % 7 == 0
+            cin = at(d, h0, 22 if late else (back * 7 + k) % 9)
+            db.add(Attendance(business_id=biz.id, stylist_id=st.id, day=d, clock_in=cin, clock_out=at(d, int(span[1][:2]) - 1, 40 + (back % 15))))
+            for j in range(2 + (back + k) % 3):
+                svc, price, mins = jobs[st][(back + j + k) % len(jobs[st])]
+                n += 1
+                ci = (back * 3 + j + k) % len(cs)
+                a = Appointment(business_id=biz.id, customer_id=cs[ci].id, stylist_id=st.id, token=new_token(10), service=svc,
+                                starts_at=at(d, h0 + 1 + j * 2), duration_min=mins, price=Decimal(price),
+                                status=AppointmentStatus.no_show if n % 23 == 0 else AppointmentStatus.completed)
+                db.add(a)
 
 
 BROKER = "broker@tressa.app"

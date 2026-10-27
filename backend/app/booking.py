@@ -52,9 +52,16 @@ def _busy(db: Session, business_id: int, day: date) -> list[Appointment]:
     ).all()
 
 
-def _free_stylist(team: list[Stylist], busy: list[Appointment], start: datetime, minutes: int) -> Stylist | None | bool:
-    """A stylist free for the whole slot; True when the salon has no team and the chair is free; False if full."""
+def _free_stylist(team: list[Stylist], busy: list[Appointment], start: datetime, minutes: int,
+                  ok=None) -> Stylist | None | bool:
+    """A stylist free for the whole slot; True when the salon has no team and the chair is free; False if full.
+    `ok(stylist)` narrows the team to people working, not on leave and able to do the service. Among the free
+    people, the least busy that day gets it, so bookings spread fairly."""
     end = start + timedelta(minutes=minutes)
+    if team and ok is not None:
+        team = [m for m in team if ok(m)]
+        if not team:
+            return False
 
     def overlaps(a: Appointment) -> bool:
         s = _aware(a.starts_at)
@@ -66,23 +73,35 @@ def _free_stylist(team: list[Stylist], busy: list[Appointment], start: datetime,
     if any(a.stylist_id is None for a in clashing) and len(clashing) >= len(team):
         return False
     taken = {a.stylist_id for a in clashing}
-    for m in team:
-        if m.id not in taken:
-            return m
-    return False
+    load: dict[int | None, int] = {}
+    for a in busy:
+        if _aware(a.starts_at).date() == start.date():
+            load[a.stylist_id] = load.get(a.stylist_id, 0) + a.duration_min
+    free = [m for m in team if m.id not in taken]
+    return min(free, key=lambda m: (load.get(m.id, 0), m.position, m.id)) if free else False
 
 
-def free_slots(db: Session, b: Business, day: date, minutes: int) -> list[str]:
+def _rules(db: Session, b: Business, day: date, service: str, minutes: int):
+    """Who may take a slot: working then, not on leave, and does the service (see staff.py)."""
+    from . import staff
+
+    menu = staff.Menu.load(db, b.id)
+    needs, leave = menu.needs(service), staff.on_leave_ids(db, b.id, day)
+    return lambda start: (lambda m: staff.why_not(m, b, start, minutes, needs, leave) is None)
+
+
+def free_slots(db: Session, b: Business, day: date, minutes: int, service: str = "") -> list[str]:
     now = datetime.now(UAE)
     if day < now.date() or day > now.date() + timedelta(days=BOOK_AHEAD_DAYS) or day.weekday() in closed_days(b):
         return []
     team = db.scalars(select(Stylist).where(Stylist.business_id == b.id, Stylist.active.is_(True)).order_by(Stylist.position, Stylist.id)).all()
     busy = _busy(db, b.id, day)
+    rule = _rules(db, b, day, service, minutes)
     opens = datetime.combine(day, _hm(b.open_time, "10:00"), tzinfo=UAE)
     closes = datetime.combine(day, _hm(b.close_time, "22:00"), tzinfo=UAE)
     out, t = [], opens
     while t + timedelta(minutes=minutes) <= closes:
-        if t > now + timedelta(minutes=30) and _free_stylist(team, busy, t, minutes) is not False:
+        if t > now + timedelta(minutes=30) and _free_stylist(team, busy, t, minutes, rule(t)) is not False:
             out.append(f"{t:%H:%M}")
         t += timedelta(minutes=STEP_MIN)
     return out
@@ -96,11 +115,12 @@ def try_book(db: Session, q: Quote, day: date, hhmm: str) -> Appointment | None:
     """Books the client in if the slot is still free. Returns None when it isn't (the quote then waits)."""
     b = q.business
     minutes = quote_duration(db, q)
-    if hhmm not in free_slots(db, b, day, minutes):
+    service = " + ".join(i.description for i in q.items)
+    if hhmm not in free_slots(db, b, day, minutes, service):
         return None
     start = datetime.combine(day, _hm(hhmm, "10:00"), tzinfo=UAE)
     team = db.scalars(select(Stylist).where(Stylist.business_id == b.id, Stylist.active.is_(True)).order_by(Stylist.position, Stylist.id)).all()
-    who = _free_stylist(team, _busy(db, b.id, day), start, minutes)
+    who = _free_stylist(team, _busy(db, b.id, day), start, minutes, _rules(db, b, day, service, minutes)(start))
     token = new_token(10)
     while db.scalar(select(Appointment.id).where(Appointment.token == token)):
         token = new_token(10)

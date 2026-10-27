@@ -77,7 +77,24 @@ docker compose exec api python -m app.seed     # demo salon
 ```
 
 Open http://localhost:3000. Demo logins (password `demo12345`): `demo@tressa.app` (salon, link page /layla-beauty) and
-`broker@tressa.app` (real estate, link page /marina-key).
+`broker@tressa.app` (real estate, link page /marina-key) and `staff@tressa.app` (a staff login: Joy, the salon's nail artist).
+
+### Staff management (Staff page)
+- **Team / profiles:** job title, contact, joined date, notes, diary colour, link-page visibility.
+- **Skills:** which menu services each person does (empty = everything). Bookings for other services don't go to them.
+- **Working hours:** per weekday, or follow the salon's opening hours. Online booking and the diary only offer times they work.
+- **Assignment:** "Best available" gives a booking to whoever is free, working, not on leave and does the service, least busy first.
+  Online self-booking (quotes, campaigns, WhatsApp) uses the same rules.
+- **Logins and permissions:** owner, manager (everything except pay, commission, logins, billing) and staff. Staff see their own
+  day and diary, clock in/out and ask for leave; the owner can also allow: everyone's diary, clients & quotes, client numbers,
+  booking, their own commission. Enforced in the API (`app/staff.py`, guards in `app/main.py`).
+- **Attendance:** clock in/out from the phone; late = 10+ minutes after their start; absent = no clock-in on a working day.
+  Owners and managers correct any day.
+- **Leave:** requests (annual, sick, unpaid, other), approve/decline with a reply, shows bookings that clash. Approved leave
+  removes them from booking.
+- **Commission:** default % plus % by menu category, on finished appointments' price before VAT; multi-service appointments
+  are split by menu price. CSV export for payroll.
+- **Performance:** sales, average ticket, clients and returning clients, diary filled %, hours worked, no-shows, late/absent.
 
 Without Docker: see the Xymber steps — `cd backend && pip install -r requirements.txt && alembic upgrade head && uvicorn app.main:app --reload`,
 then `cd frontend && npm install && npm run dev`.

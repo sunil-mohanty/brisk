@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -63,6 +63,8 @@ def current_user(
     # Sessions started before a password change are signed out. (Older tokens have no "pv".)
     if "pv" in payload and payload["pv"] != password_fingerprint(user):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your password was changed. Sign in again.")
+    if user.role == "staff" and not (user.stylist and user.stylist.active):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "This staff login was switched off. Ask the owner.")
     if user.business.status == "suspended" and not is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, SUSPENDED_MESSAGE)
     touch(db, user.business_id)
@@ -74,6 +76,45 @@ SUSPENDED_MESSAGE = "This account is paused. Contact us to switch it back on."
 
 def is_admin(user: User) -> bool:
     return user.email.lower() in get_settings().admin_email_set
+
+
+NOT_ALLOWED = "Your login doesn't include this. Ask the owner."
+
+
+def require_manager(user: User = Depends(current_user)) -> User:
+    """Owners and managers only (not staff logins)."""
+    from .staff import is_manager
+
+    if not is_manager(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, NOT_ALLOWED)
+    return user
+
+
+def require_owner(user: User = Depends(current_user)) -> User:
+    from .staff import role
+
+    if role(user) != "owner":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can change this.")
+    return user
+
+
+def manager_writes(request: Request, user: User = Depends(current_user)) -> User:
+    """Everyone signed in may read; only owners and managers may change."""
+    from .staff import is_manager
+
+    if request.method not in ("GET", "HEAD") and not is_manager(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, NOT_ALLOWED)
+    return user
+
+
+def require_perm(perm: str):
+    def dep(user: User = Depends(current_user)) -> User:
+        from .staff import can
+
+        if not can(user, perm):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, NOT_ALLOWED)
+        return user
+    return dep
 
 
 def require_admin(user: User = Depends(current_user)) -> User:

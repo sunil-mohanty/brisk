@@ -52,7 +52,9 @@ export default function AppointmentsPage() {
 function Calendar() {
   const router = useRouter();
   const params = useSearchParams();
-  const { business } = useSession();
+  const { business, user } = useSession();
+  const canBook = (user.permissions ?? ["book"]).includes("book");
+  const seeAll = (user.permissions ?? ["diary_all"]).includes("diary_all");
   const W = words(business.business_type);
   const v = vocab(business.business_type);
   const [view, setView] = useState<View>((VIEWS as string[]).includes(params.get("view") ?? "") ? (params.get("view") as View) : "week");
@@ -76,7 +78,7 @@ function Calendar() {
   }, [first, last]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    api.swr<Stylist[]>("/team", setTeam).catch(() => setTeam([]));
+    api.swr<Stylist[]>("/team", (t) => setTeam(seeAll ? t : t.filter((m) => m.id === user.stylist_id))).catch(() => setTeam([]));
     api.swr<CatalogItem[]>("/catalog", setMenu).catch(() => {});
   }, []);
   useEffect(() => { router.replace(`/appointments?view=${view}&day=${anchor}`, { scroll: false }); }, [view, anchor, router]);
@@ -120,7 +122,7 @@ function Calendar() {
     if (view === "month") { const d = new Date(anchor + "T12:00:00+04:00"); return d.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "Asia/Dubai" }); }
     return a.mon === b.mon ? `${a.mon} ${a.n} – ${b.n}` : `${a.mon} ${a.n} – ${b.mon} ${b.n}`;
   })();
-  const book = (date: string, minutes?: number, stylistId?: number | null) =>
+  const book = (date: string, minutes?: number, stylistId?: number | null) => canBook &&
     setSheet({ kind: "new", preset: { date, time: minutes !== undefined ? fmtHM(minutes) : undefined, stylistId: stylistId && stylistId > 0 ? stylistId : staff !== "all" ? staff : null } });
   const open = (a: Appointment) => setSheet({ kind: "view", appt: a });
 
@@ -129,20 +131,20 @@ function Calendar() {
       <PageHead
         title={W.Appointments}
         eyebrow={appts ? `${live.length} booked` : undefined}
-        action={<Tip id="ap.new" order={1} text="Book a client in. Or tap any free space in the calendar to book that exact time."><button className="btn primary" onClick={() => book(view === "day" ? anchor : todayUAE())}>{Icon.appointments()}{W.vertical === "real_estate" ? "New Viewing" : "New Booking"}</button></Tip>}
+        action={canBook && <Tip id="ap.new" order={1} text="Book a client in. Or tap any free space in the calendar to book that exact time."><button className="btn primary" onClick={() => book(view === "day" ? anchor : todayUAE())}>{Icon.appointments()}{W.vertical === "real_estate" ? "New Viewing" : "New Booking"}</button></Tip>}
       />
       <ErrorBox error={error} />
       <div className="cal-tools">
         <div className="seg seg-wide" role="tablist" aria-label="Calendar view">
           {VIEWS.map((x) => <button key={x} type="button" role="tab" aria-selected={view === x} aria-pressed={view === x} onClick={() => setView(x)}>{x[0].toUpperCase() + x.slice(1)}</button>)}
         </div>
-        <label className="staffpick">
+        {seeAll && <label className="staffpick">
           {Icon.staff()}
           <select value={staff} onChange={(e) => setStaff(e.target.value === "all" ? "all" : Number(e.target.value))} aria-label="Show staff">
             <option value="all">All {W.staff}</option>
             {(team ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
-        </label>
+        </label>}
       </div>
       <div className="cal-nav">
         <button type="button" className="navbtn" aria-label="Previous" onClick={() => step(-1)}>‹</button>

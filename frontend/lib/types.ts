@@ -36,7 +36,8 @@ export interface CatalogItem {
   uses: number;
 }
 
-export interface User { id: number; name: string; email: string; is_admin?: boolean; seen_tips?: string[] }
+export type Role = "owner" | "manager" | "staff";
+export interface User { id: number; name: string; email: string; is_admin?: boolean; seen_tips?: string[]; role?: Role; permissions?: string[]; stylist_id?: number | null }
 export interface AuthResponse { token: string; user: User; business: Business }
 
 export interface Customer {
@@ -490,3 +491,34 @@ export type SocialProvider = "facebook" | "instagram" | "youtube";
 export interface SocialAccount { id: number; provider: SocialProvider; name: string; handle: string | null; picture_url: string | null; selected: boolean; error: string | null; connected_at: string }
 export interface SocialStatus { meta_ready: boolean; google_ready: boolean; accounts: SocialAccount[] }
 export interface CampaignPost { id: number; provider: SocialProvider; account_name: string; status: "posting" | "posted" | "failed"; url: string | null; error: string | null; created_at: string; posted_at: string | null }
+
+// ---------- staff management ----------
+export type WeekHours = Record<string, [string, string] | null>; // "0" (Mon) .. "6" (Sun)
+export type DayStatus = "working" | "present" | "late" | "absent" | "leave" | "off" | "upcoming";
+export interface StaffToday { status: DayStatus; hours: [string, string] | null; clock_in: string | null; clock_out: string | null; appointments: number }
+export interface Staff extends Stylist {
+  phone: string | null; email: string | null; joined_on: string | null; notes: string | null;
+  skill_ids: number[]; working_hours: WeekHours; custom_hours: boolean;
+  commission_rate: string; commission_by_category: Record<string, string | null>;
+  permissions: string[]; login_email: string | null; login_role: "staff" | "manager" | null; today: StaffToday | null;
+}
+export interface StaffList { staff: Staff[]; pending_leave: number; permissions: Record<string, string>; categories: string[] }
+export interface Availability { stylist_id: number; name: string; color: string; ok: boolean; reason: string | null }
+export interface StaffLogin { email: string; role: string; password: string | null; login_url: string; whatsapp_url: string | null }
+export interface AttendanceDay { day: string; status: DayStatus; clock_in: string | null; clock_out: string | null; minutes: number; note: string | null; edited: boolean; hours: [string, string] | null }
+export interface AttendanceRow { stylist_id: number; name: string; color: string; days: AttendanceDay[]; worked_minutes: number; late: number; absent: number; leave: number }
+export type LeaveKind = "annual" | "sick" | "unpaid" | "other";
+export interface Leave {
+  id: number; stylist_id: number; name: string; color: string; kind: LeaveKind; start_date: string; end_date: string; days: number;
+  reason: string | null; status: "pending" | "approved" | "rejected" | "cancelled"; reply: string | null; created_at: string; decided_at: string | null; clashes: number;
+}
+export interface CommissionLine { category: string; sales: string; rate: string; commission: string }
+export interface CommissionRow { stylist_id: number; name: string; color: string; services: number; sales: string; net_sales: string; commission: string; lines: CommissionLine[] }
+export interface Commission { start: string; end: string; rows: CommissionRow[]; total_sales: string; total_commission: string; vat_rate: string; unassigned_sales: string }
+export interface PerformanceRow {
+  stylist_id: number; name: string; color: string; booked: number; completed: number; no_shows: number; cancelled: number;
+  sales: string; avg_ticket: string; commission: string; clients: number; repeat_clients: number;
+  booked_hours: number; scheduled_hours: number; utilisation: number; worked_hours: number; late: number; absent: number; leave_days: number;
+}
+export interface Performance { start: string; end: string; rows: PerformanceRow[] }
+export interface MyDay { staff: Staff; today: StaffToday; appointments: Appointment[]; leave: Leave[]; earnings: Commission | null; week: WeekHours }

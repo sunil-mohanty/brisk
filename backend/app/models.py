@@ -143,8 +143,12 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     # Ids of the first-time tips this person has dismissed, comma-separated.
     seen_tips: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # owner (signed the business up) | manager | staff. Staff logins are linked to their staff profile.
+    role: Mapped[str] = mapped_column(String(10), default="owner", server_default="owner")
+    stylist_id: Mapped[int | None] = mapped_column(ForeignKey("stylists.id", ondelete="SET NULL"), index=True)
 
     business: Mapped[Business] = relationship(back_populates="users")
+    stylist: Mapped["Stylist | None"] = relationship(foreign_keys=[stylist_id])
 
 
 class Customer(Base):
@@ -370,6 +374,56 @@ class Stylist(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     position: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Profile
+    phone: Mapped[str | None] = mapped_column(String(40))
+    email: Mapped[str | None] = mapped_column(String(200))
+    joined_on: Mapped[date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(Text)
+    # Services this person does (menu item ids). Empty = everything.
+    skill_ids: Mapped[list[int]] = mapped_column(JSON, default=list, server_default="[]")
+    # Weekly hours, Mon=0: {"0": ["10:00", "19:00"], "4": null (day off)}. Empty = the salon's opening hours.
+    working_hours: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # Commission: a default % plus optional % by menu category, e.g. {"Hair": 30, "Nails": 20}
+    commission_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("0"), server_default="0")
+    commission_by_category: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # What a staff login may see and do (see staff.PERMISSIONS)
+    permissions: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+
+
+class Attendance(Base):
+    """One working day for one staff member: clock in / clock out (the owner can correct it)."""
+
+    __tablename__ = "attendance"
+    __table_args__ = (UniqueConstraint("stylist_id", "day", name="uq_attendance_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    stylist_id: Mapped[int] = mapped_column(ForeignKey("stylists.id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    clock_in: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    clock_out: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    absent: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # marked absent by the owner
+    note: Mapped[str | None] = mapped_column(String(200))
+    edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # changed by the owner
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LeaveRequest(Base):
+    __tablename__ = "leave_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    stylist_id: Mapped[int] = mapped_column(ForeignKey("stylists.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="annual")  # annual | sick | unpaid | other
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    end_date: Mapped[date] = mapped_column(Date, index=True)
+    reason: Mapped[str | None] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(10), default="pending", index=True)  # pending | approved | rejected | cancelled
+    reply: Mapped[str | None] = mapped_column(String(300))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    stylist: Mapped[Stylist] = relationship()
 
 
 class Appointment(Base):

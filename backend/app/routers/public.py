@@ -227,7 +227,7 @@ def accept_quote(token: str, body: s.AcceptIn | None = None, db: Session = Depen
 def quote_slots(token: str, day: date = Query(), db: Session = Depends(get_db)):
     q = _quote(db, token)
     minutes = booking.quote_duration(db, q)
-    return s.SlotsOut(day=day, duration_min=minutes, slots=booking.free_slots(db, q.business, day, minutes))
+    return s.SlotsOut(day=day, duration_min=minutes, slots=booking.free_slots(db, q.business, day, minutes, " + ".join(i.description for i in q.items)))
 
 
 @router.post("/q/{token}/book", response_model=s.PublicQuote)
@@ -595,7 +595,7 @@ def view_campaign(token: str, preview: bool = Query(default=False), db: Session 
 @router.get("/c/{token}/slots", response_model=s.SlotsOut)
 def campaign_slots(token: str, day: date = Query(), db: Session = Depends(get_db)):
     c = _campaign(db, token)
-    return s.SlotsOut(day=day, duration_min=c.duration_min, slots=booking.free_slots(db, c.business, day, c.duration_min))
+    return s.SlotsOut(day=day, duration_min=c.duration_min, slots=booking.free_slots(db, c.business, day, c.duration_min, " + ".join(i.description for i in c.items)))
 
 
 def create_campaign_quote(db: Session, c: Campaign, name: str, phone: str) -> Quote:

@@ -9,7 +9,7 @@ import { words } from "@/lib/words";
 import { copyText, ErrorBox, Pill, toast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { addDays, atUAE, fmtDayLong, fmtTime, money, todayUAE, uaeDate, uaeTime } from "@/lib/format";
-import type { Appointment, AppointmentStatus, CatalogItem, CustomerRef, MessageLink, Stylist } from "@/lib/types";
+import type { Availability, Appointment, AppointmentStatus, CatalogItem, CustomerRef, MessageLink, Stylist } from "@/lib/types";
 import { duration, vocab } from "@/lib/vocab";
 
 export const STATUS_LABEL: Record<AppointmentStatus, string> = {
@@ -58,12 +58,13 @@ function useTeamAndMenu() {
 }
 
 function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt?: Appointment; onClose: () => void; onSaved: (a?: Appointment) => void }) {
-  const { business } = useSession();
+  const { business, user } = useSession();
   const v = vocab(business.business_type);
   const W = words(business.business_type);
   const { team, menu } = useTeamAndMenu();
   const cur = business.currency;
   const editing = !!appt;
+  const pickAnyone = (user.permissions ?? []).includes("diary_all");
   const [ref, setRef] = useState<CustomerRef>({});
   const [f, setF] = useState(() => ({
     service: appt?.service ?? preset?.service ?? "",
@@ -114,6 +115,18 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
     }));
   }, [menu, editing, f.service, preset?.durationMin]);
 
+  // Who can take it: working then, not on leave, does the service, not busy.
+  const [avail, setAvail] = useState<Record<number, Availability>>({});
+  useEffect(() => {
+    if (!team.length || !f.date || !f.time) return;
+    const t = setTimeout(() => {
+      const qs = new URLSearchParams({ start: atUAE(f.date, f.time), minutes: String(f.duration), service: f.service });
+      if (appt) qs.set("ignore", String(appt.id));
+      api.get<Availability[]>(`/staff/availability?${qs}`).then((r) => setAvail(Object.fromEntries(r.map((x) => [x.stylist_id, x])))).catch(() => setAvail({}));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [team.length, f.date, f.time, f.duration, f.service, appt]);
+
   const groups = useMemo(() => {
     const g = new Map<string, CatalogItem[]>();
     menu.forEach((m) => g.set(m.category || "Services", [...(g.get(m.category || "Services") ?? []), m]));
@@ -131,6 +144,7 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
       duration_min: f.duration,
       price: Number(f.price) || 0,
       stylist_id: f.stylist,
+      ...(!editing && f.stylist === null && team.length && pickAnyone ? { auto_assign: true } : {}),
       location: f.location,
       address: f.location === "home" ? f.address.trim() || null : null,
       notes: f.notes.trim() || null,
@@ -184,17 +198,25 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
             <input id="ap-dur" type="number" min={5} max={720} step={5} value={f.duration} onChange={(e) => set("duration", Number(e.target.value) || 60)} style={{ width: 96 }} aria-label="Minutes" />
           </div>
         </div>
-        {team.length > 0 && (
+        {team.length > 0 && pickAnyone && (
           <div className="full">
             <label>{v.staff}</label>
-            <div className="chips-inline" style={{ marginTop: 5 }}>
-              <button type="button" className="chip" aria-pressed={f.stylist === null} onClick={() => set("stylist", null)}>Anyone</button>
-              {team.map((m) => (
-                <button type="button" key={m.id} className="chip" aria-pressed={f.stylist === m.id} onClick={() => set("stylist", m.id)}>
-                  <span aria-hidden="true" style={{ display: "inline-block", width: 8, height: 10, borderRadius: "99px 99px 2px 2px", background: m.color, marginRight: 6 }} />{m.name}
-                </button>
-              ))}
+            <div className="chips-inline whopick" style={{ marginTop: 5 }}>
+              <button type="button" className="chip" aria-pressed={f.stylist === null} onClick={() => set("stylist", null)}>
+                {editing ? "Anyone" : "Best available"}
+              </button>
+              {team.map((m) => {
+                const a = avail[m.id];
+                return (
+                  <button type="button" key={m.id} className={`chip${a && !a.ok ? " is-off" : ""}`} aria-pressed={f.stylist === m.id} onClick={() => set("stylist", m.id)}
+                    title={a?.reason ?? undefined}>
+                    <span aria-hidden="true" style={{ display: "inline-block", width: 8, height: 10, borderRadius: "99px 99px 2px 2px", background: m.color, marginRight: 6 }} />{m.name}
+                    {a && !a.ok && <small className="why">{a.reason}</small>}
+                  </button>
+                );
+              })}
             </div>
+            {!editing && f.stylist === null && <span className="hint">It goes to whoever is free, working then and does this {W.service}, spreading the work evenly.</span>}
           </div>
         )}
         <label>Price ({cur})<input id="ap-price" type="number" min="0" step="1" inputMode="decimal" value={f.price} onChange={(e) => set("price", e.target.value)} placeholder="0" /></label>
@@ -230,7 +252,9 @@ function nextHalfHour() {
 }
 
 function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: () => void; onChanged: (a?: Appointment) => void }) {
-  const { business } = useSession();
+  const { business, user } = useSession();
+  const perms = user.permissions ?? ["book", "phones"];
+  const canBook = perms.includes("book"), canMsg = perms.includes("phones");
   const v = vocab(business.business_type);
   const W = words(business.business_type);
   const [a, setA] = useState(appt);
@@ -293,8 +317,8 @@ function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: ()
 
       {live && (
         <div className="acts">
-          {a.status === "booked" && <button className="btn wa" onClick={() => message("confirm")}>Send confirmation</button>}
-          {a.status !== "booked" && <button className="btn" onClick={() => message("reminder")}>Send reminder</button>}
+          {canMsg && a.status === "booked" && <button className="btn wa" onClick={() => message("confirm")}>Send confirmation</button>}
+          {canMsg && a.status !== "booked" && <button className="btn" onClick={() => message("reminder")}>Send reminder</button>}
           {a.status !== "arrived" && <button className="btn" onClick={() => status("arrived")} disabled={busy}>Client arrived</button>}
           <button className="btn primary" onClick={() => setFinishing(true)}>{W.vertical === "real_estate" ? "Record the outcome" : "Finish & record visit"}</button>
         </div>
@@ -306,11 +330,11 @@ function ApptView({ appt, onClose, onChanged }: { appt: Appointment; onClose: ()
         <div className="acts"><button className="btn" onClick={() => status("booked")} disabled={busy}>Re-open booking</button></div>
       )}
       <div className="statusrow">
-        {live && <button className="btn sm ghost" onClick={() => setEditing(true)}>Change time or details</button>}
+        {live && canBook && <button className="btn sm ghost" onClick={() => setEditing(true)}>Change time or details</button>}
         {live && <button className="btn sm ghost" onClick={() => status("no_show")} disabled={busy}>No-show</button>}
-        {live && <button className="btn sm ghost" onClick={async () => { await status("cancelled"); if (a.customer.phone && window.confirm("Let the client know on WhatsApp?")) message("cancel"); }} disabled={busy}>Cancel booking</button>}
+        {live && canBook && <button className="btn sm ghost" onClick={async () => { await status("cancelled"); if (canMsg && a.customer.phone && window.confirm("Let the client know on WhatsApp?")) message("cancel"); }} disabled={busy}>Cancel booking</button>}
         <a className="btn sm ghost" href={a.public_url} target="_blank" rel="noreferrer">Client's page</a>
-        {a.status !== "completed" && <button className="btn sm ghost danger" onClick={remove}>Delete</button>}
+        {a.status !== "completed" && canBook && <button className="btn sm ghost danger" onClick={remove}>Delete</button>}
       </div>
       <div className="foot"><button className="btn" onClick={onClose}>Close</button></div>
     </div>
