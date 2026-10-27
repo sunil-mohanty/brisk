@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Quote } from "@/lib/types";
@@ -9,6 +10,28 @@ export interface Picked { id: number; name: string; is_pdf: boolean; preview: st
 
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
 const ACCEPT_IMG = "image/jpeg,image/png,image/webp";
+
+/** Full-size view of a picture, over the page. Esc or a click outside closes it. */
+export function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", k);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", k); document.body.style.overflow = prev; };
+  }, [onClose]);
+  return createPortal(
+    <div className="lightbox" role="dialog" aria-modal="true" aria-label={alt} onClick={onClose}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} onClick={(e) => e.stopPropagation()} />
+      <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
+        <a className="btn sm" href={src} download="picture.jpg">Download</a>
+        <button type="button" className="btn sm primary" onClick={onClose} autoFocus>Close</button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 let aiCache: number | null | undefined;
 /** AI pictures left this month, or null when AI isn't set up. */
@@ -77,6 +100,7 @@ export function AttachField({ value, onChange }: { value: Picked | null; onChang
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"upload" | "ai">("upload");
   const [left, setLeft] = useAiLeft();
+  const [full, setFull] = useState(false);
   async function pick(f: File | undefined) {
     if (!f) return;
     if (f.size > 10 * 1024 * 1024) return toast("That file is over 10 MB. Use a smaller picture or PDF.");
@@ -103,10 +127,14 @@ export function AttachField({ value, onChange }: { value: Picked | null; onChang
       {value ? (
         <div className="attach-has">
           {value.preview
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={value.preview} alt="" />
+            ? <button type="button" className="attach-thumb" onClick={() => setFull(true)} aria-label="See full picture">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={value.preview} alt="" />
+              </button>
             : <span className="attach-pdf" aria-hidden="true">PDF</span>}
           <span className="attach-name"><b>{value.name}</b><small>Sent with the quote. Clients see it on their quote page and in the WhatsApp preview.</small></span>
+          {value.preview && <button type="button" className="btn sm" onClick={() => setFull(true)}>See full picture</button>}
+          {full && value.preview && <Lightbox src={value.preview} alt={value.name} onClose={() => setFull(false)} />}
           {value.ai
             ? <button type="button" className="btn sm" onClick={() => { setMode("ai"); onChange(null); }}>Try another</button>
             : <button type="button" className="btn sm" onClick={() => input.current?.click()} disabled={busy}>Replace</button>}
@@ -149,6 +177,7 @@ export function QuotePicture({ q, onChange }: { q: Quote; onChange: (q: Quote) =
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [full, setFull] = useState(false);
   const hasItems = q.items.length > 0;
   const open = q.status === "sent" || q.status === "viewed";
 
@@ -170,8 +199,11 @@ export function QuotePicture({ q, onChange }: { q: Quote; onChange: (q: Quote) =
       <div className="qpic-grid">
         <div className="qpic-preview">
           {q.picture_url
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={q.picture_url} alt={`Picture for ${q.label}`} />
+            ? <button type="button" className="qpic-open" onClick={() => setFull(true)} aria-label="See full picture">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={q.picture_url} alt={`Picture for ${q.label}`} />
+                <span>⤢ See full picture</span>
+              </button>
             : q.design_style === "upload" && q.attachment?.is_pdf
               ? <a className="qpic-pdf" href={q.attachment.url} target="_blank" rel="noreferrer"><span>PDF</span>{q.attachment.name}</a>
               : <div className="qpic-empty">No picture. The quote is sent as a link with your items and prices.</div>}
@@ -202,6 +234,7 @@ export function QuotePicture({ q, onChange }: { q: Quote; onChange: (q: Quote) =
             <AiForm busy={busy === "ai"} left={q.ai_left} onMake={makeAi} onCancel={() => setAiOpen(false)}
               hint={hasItems ? "Leave empty to make it from your services. Your prices and the QR code are added on top." : undefined} />
           )}
+          {full && q.picture_url && <Lightbox src={q.picture_url} alt={`Picture for ${q.label}`} onClose={() => setFull(false)} />}
           <p className="note" style={{ margin: 0 }}>When you press Send on WhatsApp, your client sees this picture as the link preview.</p>
         </div>
       </div>

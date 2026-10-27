@@ -19,7 +19,7 @@ function QuoteView() {
   const preview = params.get("preview") === "1";
   const [q, setQ] = useState<PublicQuoteData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<"view" | "accept" | "reject">("view");
+  const [step, setStep] = useState<"view" | "reject">("view");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -107,20 +107,10 @@ function QuoteView() {
 
       {open && step === "view" && (
         <div className="pbtns">
-          <button className="btn primary" onClick={() => setStep("accept")}>Accept quotation</button>
+          <button className="btn primary" disabled={busy} onClick={accept}>{busy ? "Please wait…" : "Accept quotation"}</button>
           <div className="row2">
             <button className="btn" onClick={() => setStep("reject")}>Decline</button>
             <a className="btn" href={`/api/public/q/${token}/pdf`}>Download PDF</a>
-          </div>
-        </div>
-      )}
-      {open && step === "accept" && (
-        <div className="pcard" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <b>Accept quotation {q.label}?</b>
-          <span className="kicker" style={{ margin: 0 }}>{q.business.name} will message you to arrange the time.</span>
-          <div className="row2 pbtns" style={{ display: "grid" }}>
-            <button className="btn" onClick={() => setStep("view")}>Go back</button>
-            <button className="btn primary" disabled={busy} onClick={accept}>{busy ? "Please wait…" : "Yes, accept"}</button>
           </div>
         </div>
       )}
