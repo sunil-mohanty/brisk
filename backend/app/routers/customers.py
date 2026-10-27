@@ -11,7 +11,7 @@ from .. import schemas as s
 from ..db import get_db
 from ..importer import MAX_ROWS, Row, clean_phone, finish_rows, parse_file, parse_text
 from ..logic import get_owned
-from ..models import Customer, Quote, QuoteStatus, User
+from ..models import Business, Customer, Quote, QuoteStatus, User
 from ..utils import quote_totals
 from ..security import current_user
 
@@ -46,9 +46,108 @@ def _summary(c: Customer) -> s.CustomerSummary:
     )
 
 
+MAX_CATEGORIES = 4
+
+
+def clean_tags(tags: list[str]) -> list[str]:
+    """Trimmed and de-duplicated (ignoring case), names of at most 30 characters."""
+    out: list[str] = []
+    for t in tags:
+        t = " ".join((t or "").replace(",", " ").split())[:30]
+        if t and t.lower() not in {x.lower() for x in out}:
+            out.append(t)
+    return out
+
+
+def has_tag(c: Customer, tag: str) -> bool:
+    return tag.lower() in {t.lower() for t in (c.tags or [])}
+
+
+def _categories(db: Session, business_id: int) -> list[str]:
+    return list(db.get(Business, business_id).client_categories or [])
+
+
+def _as_categories(db: Session, business_id: int, names: list[str]) -> list[str]:
+    """Maps names to the business's categories (their spelling). Unknown names are refused."""
+    cats = {c.lower(): c for c in _categories(db, business_id)}
+    out = []
+    for n in clean_tags(names):
+        if n.lower() not in cats:
+            raise HTTPException(422, f"“{n}” isn't one of your categories. Add it under Manage categories first.")
+        out.append(cats[n.lower()])
+    return out
+
+
+def _categories_out(db: Session, business_id: int) -> s.CategoriesOut:
+    cats = _categories(db, business_id)
+    counts: Counter[str] = Counter()
+    none = 0
+    for tags in db.scalars(select(Customer.tags).where(Customer.business_id == business_id)):
+        tags = [t.lower() for t in tags or []]
+        counts.update(tags)
+        none += not tags
+    return s.CategoriesOut(categories=[s.TagCount(name=c, count=counts[c.lower()]) for c in cats],
+                           uncategorised=none, max=MAX_CATEGORIES)
+
+
+@router.get("/categories", response_model=s.CategoriesOut)
+def list_categories(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """The owner's categories, with how many clients are in each, and how many are in none."""
+    return _categories_out(db, user.business_id)
+
+
+@router.put("/categories", response_model=s.CategoriesOut)
+def save_categories(body: s.CategoriesIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Create, rename or remove categories. Renames carry the clients along; removing one takes it off its clients."""
+    names = [" ".join(c.name.split())[:30] for c in body.categories]
+    if any(not n for n in names):
+        raise HTTPException(422, "Give every category a name.")
+    if len({n.lower() for n in names}) != len(names):
+        raise HTTPException(422, "Two categories have the same name.")
+    if len(names) > MAX_CATEGORIES:
+        raise HTTPException(422, f"You can have up to {MAX_CATEGORIES} categories.")
+    b = db.get(Business, user.business_id)
+    old = {c.lower(): c for c in b.client_categories or []}
+    rename = {c.was.strip().lower(): n for c, n in zip(body.categories, names) if c.was and c.was.strip().lower() in old}
+    for cu in db.scalars(select(Customer).where(Customer.business_id == user.business_id)):
+        if not cu.tags:
+            continue
+        nxt = clean_tags([rename[t.lower()] for t in cu.tags if t.lower() in rename])
+        if nxt != cu.tags:
+            cu.tags = nxt
+    b.client_categories = names
+    db.commit()
+    return _categories_out(db, user.business_id)
+
+
+@router.post("/tags/bulk", response_model=s.CategoriesOut)
+def bulk_tag(body: s.BulkTagIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Put many clients into a category (or take them out of one) at once, e.g. right after a bulk import."""
+    add = _as_categories(db, user.business_id, [body.add]) if body.add else []
+    if not add and not body.remove:
+        raise HTTPException(422, "Choose a category.")
+    for c in db.scalars(select(Customer).where(Customer.business_id == user.business_id, Customer.id.in_(body.customer_ids))):
+        tags = list(c.tags or [])
+        if body.remove:
+            tags = [t for t in tags if t.lower() != body.remove.strip().lower()]
+        c.tags = clean_tags(tags + add)
+    db.commit()
+    return _categories_out(db, user.business_id)
+
+
+@router.put("/{customer_id}/tags", response_model=s.CustomerOut)
+def set_tags(customer_id: int, body: s.TagsIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    c = get_owned(db, Customer, customer_id, user.business_id, "Customer")
+    c.tags = _as_categories(db, user.business_id, body.tags)
+    db.commit()
+    return c
+
+
 @router.get("", response_model=list[s.CustomerSummary])
 def list_customers(
     q: str | None = Query(default=None, max_length=100),
+    tag: str | None = Query(default=None, max_length=40),
+    uncategorised: bool = Query(default=False),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
@@ -66,7 +165,8 @@ def list_customers(
     if q:
         like = f"%{q}%"
         stmt = stmt.where(or_(Customer.name.ilike(like), Customer.phone.ilike(like)))
-    return [_summary(c) for c in db.scalars(stmt)]
+    return [_summary(c) for c in db.scalars(stmt)
+            if (not tag or has_tag(c, tag)) and (not uncategorised or not c.tags)]
 
 
 @router.post("", response_model=s.CustomerOut, status_code=201)
@@ -159,7 +259,13 @@ async def import_preview_file(
 def import_commit(body: s.ImportCommitIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Saves the rows the owner ticked. Numbers that already exist are skipped, never duplicated."""
     rows = _rows_from_in(body.rows)[:MAX_ROWS]
+    cat = _as_categories(db, user.business_id, [body.category]) if body.category else []
     existing = set(_existing_by_phone(db, user.business_id))
+    if cat:  # clients already saved with these numbers join the category too
+        phones = {r.phone for r in rows if r.phone and r.phone in existing}
+        for cu in db.scalars(select(Customer).where(Customer.business_id == user.business_id, Customer.phone.is_not(None))):
+            if clean_phone(cu.phone) in phones:
+                cu.tags = clean_tags(list(cu.tags or []) + cat)
     note = f"Imported {date.today():%d %b %Y}"
     created = 0
     for r in rows:
@@ -167,7 +273,7 @@ def import_commit(body: s.ImportCommitIn, user: User = Depends(current_user), db
             continue
         if r.phone:
             existing.add(r.phone)
-        db.add(Customer(business_id=user.business_id, name=r.name, phone=r.phone, email=r.email, area=r.area, notes=note))
+        db.add(Customer(business_id=user.business_id, name=r.name, phone=r.phone, email=r.email, area=r.area, notes=note, tags=list(cat)))
         created += 1
     record(db, user.business_id, "customers_imported", f"{created} customers")
     db.commit()

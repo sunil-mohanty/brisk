@@ -11,6 +11,7 @@ import { fmtDate, fmtDay, fmtTime, money, uaeDate } from "@/lib/format";
 import type { Campaign, Quote } from "@/lib/types";
 import { duration } from "@/lib/vocab";
 import { SocialPost } from "@/components/SocialPost";
+import { SendToClients } from "@/components/Segments";
 
 export default function CampaignPage() {
   return <Suspense fallback={<Loading />}><CampaignDetail /></Suspense>;
@@ -18,7 +19,9 @@ export default function CampaignPage() {
 
 function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
-  const editing = useSearchParams().get("edit") === "1";
+  const params = useSearchParams();
+  const editing = params.get("edit") === "1";
+  const sendTag = params.get("send");
   const router = useRouter();
   const { business } = useSession();
   const [c, setC] = useState<Campaign | null>(null);
@@ -61,12 +64,16 @@ function CampaignDetail() {
           {c.active ? <button className="btn" onClick={() => setActive(false)}>Pause</button> : <button className="btn primary" onClick={() => setActive(true)}>Resume</button>}
         </>}
       />
-      <div className="kpis" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div className="kpis">
+        <div className="kpi"><span>Sent on WhatsApp</span><strong>{c.sent_whatsapp ?? 0}</strong><em>clients you messaged</em></div>
         <div className="kpi"><span>Page views</span><strong>{c.views}</strong><em>people who opened the offer</em></div>
         <div className="kpi"><span>Accepted</span><strong>{c.accepted}</strong><em>{c.views ? `${Math.round((c.accepted / c.views) * 100)}% of views` : "no views yet"}</em></div>
         <div className="kpi"><span>Booked a time</span><strong>{c.booked}</strong><em>{c.accepted - c.booked} still to book in</em></div>
       </div>
       <SocialPost c={c} onChange={setC} />
+      <div style={{ marginTop: 16 }}>
+        <SendToClients campaignId={c.id} initialTag={sendTag} onSent={(n) => setC((x) => x && { ...x, sent_whatsapp: (x.sent_whatsapp ?? 0) + n })} />
+      </div>
       <div className="detail" style={{ marginTop: 16 }}>
         <div className="stack">
           <section className="panel">

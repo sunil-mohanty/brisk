@@ -96,7 +96,7 @@ Push the new code. The `api` service runs database migrations on start, so the l
 and the link-page switch. Existing data is kept, and quotes already accepted are marked
 "booked" (if they have an appointment) or "awaiting booking".
 
-Later updates add `0005_design` (banner style and AI pictures) and `0006_quote_pics` (pictures and brochures on quotes). This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
+Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) and `0008_categories` (your own client categories, up to 4). This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
 `pillow`, `cryptography` and `imageio-ffmpeg` to the api, installed automatically on deploy.
 The WhatsApp part (`0003_whatsapp`) adds (a log of incoming WhatsApp messages and
 delivery ticks). Nothing changes until you add the WhatsApp variables (see below).

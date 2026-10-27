@@ -101,6 +101,9 @@ def main() -> None:
         ("Sara Ali", "+971 50 909 1188", "Umm Suqeim"),
     ]
     cs = [Customer(business_id=biz.id, name=n, phone=p, area=a, created_at=ago(40)) for n, p, a in people]
+    biz.client_categories = ["Bridal", "VIP", "Keratin"]
+    for c, tags in zip(cs, (["Bridal", "VIP"], ["Keratin"], [], ["Bridal"], [], ["VIP", "Keratin"], ["Bridal"], [], ["VIP"])):
+        c.tags = tags
     db.add_all(cs)
 
     qr_specs = [

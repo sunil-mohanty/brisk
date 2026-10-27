@@ -154,3 +154,18 @@ def test_ai_picture_with_a_reference_photo(client, fal):
     other = signup(client, email="z@o.ae", business="Other")
     oq = _quote(client, other).json()
     assert client.post(f"/api/quotes/{oq['id']}/design/ai", json={"description": "x y z", "reference_id": ref["id"]}, headers=other).status_code == 422
+
+
+def test_link_preview_pictures_are_small_squares(client):
+    """WhatsApp leaves out preview pictures over ~300 KB, so previews get their own small JPEG."""
+    h = signup(client)
+    c = client.post("/api/campaigns", json={"title": "Glow facial", "items": [{"description": "Facial", "unit_price": 300}]}, headers=h).json()
+    pub = client.get(f"/api/public/c/{c['token']}?preview=1").json()
+    assert pub["image_version"]
+    q = _quote(client, h).json()
+    assert client.get(f"/api/public/q/{q['token']}/share.jpg").status_code == 404  # no picture: the page uses a card
+    client.patch(f"/api/quotes/{q['id']}/design", json={"style": "bold"}, headers=h)
+    for url in (f"/api/public/c/{c['token']}/share.jpg", f"/api/public/q/{q['token']}/share.jpg"):
+        r = client.get(url)
+        assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and len(r.content) < 300_000
+        assert Image.open(io.BytesIO(r.content)).size == (800, 800)

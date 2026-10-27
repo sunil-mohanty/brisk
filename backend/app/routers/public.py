@@ -1,8 +1,10 @@
 """Customer-facing endpoints. No login: the random token or QR code in the URL is the key."""
 
 import hashlib
+import io
 from datetime import date, datetime, timedelta, timezone
 
+from PIL import Image
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -263,6 +265,17 @@ def quote_picture(token: str, fmt: str, db: Session = Depends(get_db)):
     return Response(got[0], media_type=got[1], headers={"Cache-Control": "public, max-age=300"})
 
 
+@router.get("/q/{token}/share.jpg")
+def quote_share_image(token: str, db: Session = Depends(get_db)):
+    """The quote's picture, small and square, for the WhatsApp link preview."""
+    from .. import quote_art
+
+    got = quote_art.picture(db, _quote(db, token), "square")
+    if not got:
+        raise HTTPException(404, "This quote has no picture")
+    return Response(_share_jpeg(got[0]), media_type="image/jpeg", headers={"Cache-Control": "public, max-age=300"})
+
+
 @router.get("/q/{token}/file")
 def quote_file(token: str, db: Session = Depends(get_db)):
     """The uploaded picture or PDF brochure, as the owner sent it."""
@@ -517,7 +530,32 @@ def _public_campaign(c: Campaign) -> s.PublicCampaign:
         items=[item_out(i) for i in c.items], totals=campaign_totals(c), vat_rate=c.vat_rate, currency=c.business.currency,
         valid_until=c.valid_until, expired=campaign_expired(c), active=c.active, duration_min=c.duration_min,
         notes=c.notes, open_days=_open_days(c.business), whatsapp_accept_url=whatsapp_accept_url(c),
+        image_version=creative.version(c),
     )
+
+
+def _share_jpeg(data: bytes, side: int = 800) -> bytes:
+    """A small square JPEG for link previews. WhatsApp leaves out pictures that are too big (over ~300 KB)."""
+    im = Image.open(io.BytesIO(data)).convert("RGB")
+    w, h = im.size
+    if w != h:  # centre-crop to a square so WhatsApp shows the large preview
+        d = min(w, h)
+        im = im.crop(((w - d) // 2, (h - d) // 2, (w - d) // 2 + d, (h - d) // 2 + d))
+    im = im.resize((side, side), Image.LANCZOS)
+    for quality in (82, 72, 62):
+        out = io.BytesIO()
+        im.save(out, "JPEG", quality=quality, optimize=True, progressive=False)
+        if out.tell() < 250_000:
+            break
+    return out.getvalue()
+
+
+@router.get("/c/{token}/share.jpg")
+def campaign_share_image(token: str, db: Session = Depends(get_db)):
+    """The picture WhatsApp/Facebook show when the offer link is shared."""
+    c = _campaign(db, token)
+    return Response(_share_jpeg(creative.render(c, campaign_url(c), "square")), media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=300"})
 
 
 _VIDEO_CACHE: dict[str, bytes] = {}

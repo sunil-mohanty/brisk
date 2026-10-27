@@ -17,9 +17,9 @@ from ..config import get_settings
 from ..db import get_db
 from .. import ai_art, creative, designer, social, whatsapp
 from ..logic import get_owned, item_out
-from ..models import Campaign, CampaignItem, Quote, User
+from ..models import Campaign, CampaignItem, CampaignSend, Customer, Quote, User
 from ..security import current_user
-from ..utils import money, new_token, quote_totals
+from ..utils import money, new_token, quote_totals, whatsapp_link
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -58,7 +58,17 @@ def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
         theme=designer.detect(c).label,
         has_ai_art=c.art_id is not None,
         ai_left=ai_art.left_this_month(db, c.business_id),
+        sent_whatsapp=db.scalar(select(func.count(CampaignSend.id)).where(CampaignSend.campaign_id == c.id)) or 0,
     )
+
+
+def client_message(c: Campaign, first_name: str) -> str:
+    """What the owner sends to one client. The link at the end makes WhatsApp show the offer picture."""
+    t = totals(c)
+    until = f" Offer ends {c.valid_until:%d %b}." if c.valid_until else ""
+    hi = f"Hi {first_name}!" if first_name else "Hi!"
+    return (f"{hi} {c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until}\n"
+            f"See the offer and book your time: {campaign_url(c)}")
 
 
 def whatsapp_accept_url(c: Campaign) -> str | None:
@@ -126,6 +136,43 @@ def responses(cid: int, user: User = Depends(current_user), db: Session = Depend
     _get(db, cid, user.business_id)
     rows = db.scalars(select(Quote).where(Quote.campaign_id == cid).order_by(Quote.id.desc())).all()
     return [quote_out(db, q) for q in rows]
+
+
+@router.get("/{cid}/audience", response_model=s.AudienceOut)
+def audience(cid: int, tag: str | None = Query(default=None, max_length=40), user: User = Depends(current_user),
+             db: Session = Depends(get_db)):
+    """The clients with a tag (or all clients), each with a WhatsApp link pre-filled with this campaign."""
+    from .customers import has_tag
+
+    c = _get(db, cid, user.business_id)
+    sent = dict(db.execute(select(CampaignSend.customer_id, CampaignSend.sent_at).where(CampaignSend.campaign_id == c.id)).all())
+    rows = []
+    for cu in db.scalars(select(Customer).where(Customer.business_id == user.business_id).order_by(Customer.name)):
+        if tag and not has_tag(cu, tag):
+            continue
+        first = (cu.name or "").split()[0] if cu.name else ""
+        rows.append(s.AudienceRow(customer_id=cu.id, name=cu.name, phone=cu.phone, tags=cu.tags or [],
+                                  whatsapp_url=whatsapp_link(cu.phone, client_message(c, first)), sent_at=sent.get(cu.id)))
+    return s.AudienceOut(campaign_id=c.id, title=c.title, tag=tag, rows=rows, sent=sum(1 for r in rows if r.sent_at))
+
+
+@router.post("/{cid}/audience/{customer_id}/sent", status_code=204)
+def mark_sent(cid: int, customer_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """The owner opened WhatsApp for this client; tick them off so the list shows who is left."""
+    c = _get(db, cid, user.business_id)
+    get_owned(db, Customer, customer_id, user.business_id, "Customer")
+    if not db.scalar(select(CampaignSend.id).where(CampaignSend.campaign_id == c.id, CampaignSend.customer_id == customer_id)):
+        db.add(CampaignSend(campaign_id=c.id, customer_id=customer_id))
+        record(db, user.business_id, "campaign_sent", c.title)
+        db.commit()
+
+
+@router.delete("/{cid}/audience/{customer_id}/sent", status_code=204)
+def unmark_sent(cid: int, customer_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    c = _get(db, cid, user.business_id)
+    for row in db.scalars(select(CampaignSend).where(CampaignSend.campaign_id == c.id, CampaignSend.customer_id == customer_id)):
+        db.delete(row)
+    db.commit()
 
 
 @router.delete("/{cid}", status_code=204)

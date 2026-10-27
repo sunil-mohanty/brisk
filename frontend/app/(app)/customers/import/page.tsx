@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorBox, PageHead, Pill, toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { ImportPreview, ImportPreviewRow, ImportRow, ImportStatus } from "@/lib/types";
+import { useCategories } from "@/components/Segments";
 
 type Source = "phone" | "file" | "paste";
 
@@ -29,7 +30,9 @@ export default function ImportCustomersPage() {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ created: number; skipped: number } | null>(null);
+  const [done, setDone] = useState<{ created: number; skipped: number; category: string } | null>(null);
+  const [cats] = useCategories();
+  const [category, setCategory] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -73,13 +76,14 @@ export default function ImportCustomersPage() {
 
   async function save() {
     if (!preview) return;
-    const rows = preview.rows.filter((_, i) => picked.has(i)).map(({ name, phone, email, area }) => ({ name, phone, email, area }));
+    // With a category, clients already saved from this list join it too (they aren't added twice).
+    const rows = preview.rows.filter((r, i) => picked.has(i) || (category && r.status === "existing")).map(({ name, phone, email, area }) => ({ name, phone, email, area }));
     if (!rows.length) return setError("Tick at least one contact to import.");
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post<{ created: number; skipped: number }>("/customers/import", { rows });
-      setDone(r);
+      const r = await api.post<{ created: number; skipped: number }>("/customers/import", { rows, category: category || null });
+      setDone({ ...r, category });
       setPreview(null);
       setText("");
       toast(`${r.created} customer${r.created === 1 ? "" : "s"} imported`);
@@ -101,7 +105,9 @@ export default function ImportCustomersPage() {
       {done && (
         <div className="success" style={{ marginBottom: 16 }} role="status">
           Imported <b>{done.created}</b> customer{done.created === 1 ? "" : "s"}
-          {done.skipped ? ` · skipped ${done.skipped} already saved` : ""}. <Link href="/customers">View clients</Link>
+          {done.skipped ? ` · skipped ${done.skipped} already saved` : ""}
+          {done.category ? <> into <b>{done.category}</b>. <Link href={`/customers?category=${encodeURIComponent(done.category)}`}>View {done.category}</Link></>
+            : <>. <Link href="/customers?uncategorised=1">Put them into categories</Link> or <Link href="/customers">view all clients</Link></>}
         </div>
       )}
 
@@ -196,6 +202,19 @@ export default function ImportCustomersPage() {
           error={error}
           onCancel={() => { setPreview(null); setError(null); }}
           onSave={save}
+          categoryPicker={
+            <div className="impcat">
+              <label>Put them in a category <span className="muted small">optional</span>
+                {cats?.categories.length ? (
+                  <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                    <option value="">No category</option>
+                    {cats.categories.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                ) : <span className="small muted" style={{ display: "block", marginTop: 6 }}>Create your categories on the <Link href="/customers">Clients</Link> page first, or sort them in later.</span>}
+              </label>
+              {category && <span className="small muted">Clients already saved from this list join “{category}” too.</span>}
+            </div>
+          }
         />
       )}
     </>
@@ -210,8 +229,9 @@ function Review(props: {
   error: string | null;
   onCancel: () => void;
   onSave: () => void;
+  categoryPicker?: React.ReactNode;
 }) {
-  const { preview, picked, setPicked, busy, error, onCancel, onSave } = props;
+  const { preview, picked, setPicked, busy, error, onCancel, onSave, categoryPicker } = props;
   const [filter, setFilter] = useState<ImportStatus | "all">("all");
   const rows = useMemo(() => preview.rows.map((r, i) => ({ r, i })).filter(({ r }) => filter === "all" || r.status === filter), [preview, filter]);
   const selectable = (r: ImportPreviewRow) => r.status === "new" || r.status === "no_phone";
@@ -246,6 +266,7 @@ function Review(props: {
           </button>
         </div>
       </div>
+      {categoryPicker}
       <ErrorBox error={error} />
       <div className="filters" style={{ marginTop: 12 }}>
         <button className="chip" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All <span className="mono">{preview.rows.length}</span></button>

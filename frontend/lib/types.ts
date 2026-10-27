@@ -46,8 +46,14 @@ export interface Customer {
   email: string | null;
   area: string | null;
   notes: string | null;
+  tags: string[];
   created_at: string;
 }
+
+export interface TagCount { name: string; count: number }
+export interface Categories { categories: TagCount[]; uncategorised: number; max: number }
+export interface AudienceRow { customer_id: number; name: string; phone: string | null; tags: string[]; whatsapp_url: string | null; sent_at: string | null }
+export interface Audience { campaign_id: number; title: string; tag: string | null; rows: AudienceRow[]; sent: number }
 
 export interface CustomerSummary extends Customer {
   first_source: string | null;
@@ -243,6 +249,7 @@ export interface Campaign {
   theme: string;
   has_ai_art: boolean;
   ai_left: number | null;
+  sent_whatsapp?: number;
 }
 
 export interface PublicCampaign {
@@ -260,6 +267,7 @@ export interface PublicCampaign {
   notes: string | null;
   open_days: number[];
   whatsapp_accept_url: string | null;
+  image_version?: string;
 }
 
 export interface InventoryItem {

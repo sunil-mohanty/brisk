@@ -2,18 +2,22 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Tracking } from "@/components/Tracking";
 import { site } from "@/lib/site";
+import { siteBase } from "@/lib/base";
 
 const title = `${site.name} – leads, quotes and bookings for small businesses`;
 const description = "Enquiries from Instagram and ads, quotes clients accept on WhatsApp, and bookings that confirm themselves. For salons and real estate brokers in the UAE. Free trial.";
 
-export const metadata: Metadata = {
-  title: { default: title, template: `%s · ${site.name}` },
-  description,
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://tressa.app"),
-  openGraph: { title, description, type: "website" },
-  appleWebApp: { capable: true, title: site.name, statusBarStyle: "default" },
-  icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: { default: title, template: `%s · ${site.name}` },
+    description,
+    // Absolute URLs for link-preview pictures come from the address the page was opened on.
+    metadataBase: await siteBase(),
+    openGraph: { title, description, type: "website" },
+    appleWebApp: { capable: true, title: site.name, statusBarStyle: "default" },
+    icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -133,7 +133,60 @@ class CustomerOut(ORM):
     email: str | None
     area: str | None
     notes: str | None
+    tags: list[str] = []
     created_at: datetime
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _no_null_tags(cls, v):
+        return v or []
+
+
+class TagsIn(BaseModel):
+    tags: list[str] = Field(default_factory=list, max_length=20)
+
+
+class BulkTagIn(BaseModel):
+    customer_ids: list[int] = Field(min_length=1, max_length=20000)
+    add: str | None = Field(default=None, max_length=40)
+    remove: str | None = Field(default=None, max_length=40)
+
+
+class TagCount(BaseModel):
+    name: str
+    count: int
+
+
+class CategoryIn(BaseModel):
+    name: str = Field(max_length=60)
+    was: str | None = Field(default=None, max_length=60)  # the old name, when renaming
+
+
+class CategoriesIn(BaseModel):
+    categories: list[CategoryIn] = Field(max_length=10)
+
+
+class CategoriesOut(BaseModel):
+    categories: list[TagCount]
+    uncategorised: int
+    max: int
+
+
+class AudienceRow(BaseModel):
+    customer_id: int
+    name: str
+    phone: str | None
+    tags: list[str]
+    whatsapp_url: str | None  # None when the client has no usable mobile number
+    sent_at: datetime | None
+
+
+class AudienceOut(BaseModel):
+    campaign_id: int
+    title: str
+    tag: str | None
+    rows: list[AudienceRow]
+    sent: int
 
 
 class CustomerSummary(CustomerOut):
@@ -175,6 +228,7 @@ class ImportPreviewOut(BaseModel):
 
 class ImportCommitIn(BaseModel):
     rows: list[ImportRowIn] = Field(min_length=1, max_length=5000)
+    category: str | None = Field(default=None, max_length=30)  # put everyone in this list into one of the owner's categories
 
 
 class ImportResultOut(BaseModel):
@@ -825,6 +879,7 @@ class CampaignOut(BaseModel):
     theme: str = ""  # what the designer read from the package, e.g. "Skin & facial"
     has_ai_art: bool = False
     ai_left: int | None = None  # AI pictures left this month; None = AI not set up
+    sent_whatsapp: int = 0  # clients the owner sent it to on WhatsApp
 
 
 class PublicCampaign(BaseModel):
@@ -842,6 +897,7 @@ class PublicCampaign(BaseModel):
     notes: str | None
     open_days: list[int] = []
     whatsapp_accept_url: str | None = None  # opens a chat with the business number, pre-filled with the offer code
+    image_version: str = ""  # changes when the picture changes, so link previews refresh
 
 
 class CampaignAcceptIn(AcceptIn):

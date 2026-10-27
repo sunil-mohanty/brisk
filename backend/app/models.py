@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
@@ -117,6 +118,8 @@ class Business(Base):
     plan_amount: Mapped[Decimal | None] = mapped_column(Money)  # per month
     trial_ends_at: Mapped[date | None] = mapped_column(Date)
     paid_until: Mapped[date | None] = mapped_column(Date)
+    # The owner's own client categories (at most 4), e.g. ["Bridal", "VIP", "Keratin", "Corporate"]
+    client_categories: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     admin_note: Mapped[str | None] = mapped_column(Text)
     invite_code_id: Mapped[int | None] = mapped_column(ForeignKey("invite_codes.id", ondelete="SET NULL"))
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -154,6 +157,8 @@ class Customer(Base):
     email: Mapped[str | None] = mapped_column(String(200))
     area: Mapped[str | None] = mapped_column(String(120))
     notes: Mapped[str | None] = mapped_column(Text)
+    # The owner's own labels for segments, e.g. ["Bridal", "VIP"]
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     leads: Mapped[list[Lead]] = relationship(back_populates="customer")
@@ -532,6 +537,18 @@ class SocialAccount(Base):
     selected: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     error: Mapped[str | None] = mapped_column(String(300))  # e.g. "Reconnect: the token was revoked"
     connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CampaignSend(Base):
+    """A campaign sent to one client on WhatsApp (by the owner, one tap per client)."""
+
+    __tablename__ = "campaign_sends"
+    __table_args__ = (UniqueConstraint("campaign_id", "customer_id", name="uq_campaign_send"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    campaign_id: Mapped[int] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class CampaignPost(Base):
