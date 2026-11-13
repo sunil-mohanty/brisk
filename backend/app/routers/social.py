@@ -15,7 +15,7 @@ from ..config import get_settings
 from ..db import SessionLocal, get_db
 from ..logic import get_owned
 from ..models import Campaign, CampaignPost, SocialAccount, User
-from ..security import require_manager
+from ..security import require_campaigns, require_manager
 from .campaigns import campaign_expired, campaign_url
 
 router = APIRouter(tags=["social"])
@@ -99,7 +99,8 @@ def _run(post_ids: list[int]) -> None:
 
 
 @router.post("/campaigns/{cid}/publish", response_model=list[s.CampaignPostOut], status_code=202)
-def publish(cid: int, body: s.PublishIn, tasks: BackgroundTasks, user: User = Depends(require_manager), db: Session = Depends(get_db)):
+def publish(cid: int, body: s.PublishIn, tasks: BackgroundTasks, user: User = Depends(require_manager),
+            _addon: User = Depends(require_campaigns), db: Session = Depends(get_db)):
     c = get_owned(db, Campaign, cid, user.business_id, "Campaign")
     if not c.active or campaign_expired(c):
         raise HTTPException(409, "This campaign is paused or has ended. Switch it on before posting.")
@@ -124,7 +125,7 @@ def publish(cid: int, body: s.PublishIn, tasks: BackgroundTasks, user: User = De
 
 
 @router.get("/campaigns/{cid}/posts", response_model=list[s.CampaignPostOut])
-def posts(cid: int, user: User = Depends(require_manager), db: Session = Depends(get_db)):
+def posts(cid: int, user: User = Depends(require_manager), _addon: User = Depends(require_campaigns), db: Session = Depends(get_db)):
     get_owned(db, Campaign, cid, user.business_id, "Campaign")
     rows = db.scalars(select(CampaignPost).where(CampaignPost.campaign_id == cid).order_by(CampaignPost.id.desc())).all()
     return [s.CampaignPostOut.model_validate(p) for p in rows]

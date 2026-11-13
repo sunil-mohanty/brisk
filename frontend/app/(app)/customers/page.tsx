@@ -114,7 +114,10 @@ export default function CustomersPage() {
           </button>
         )}
         <button type="button" className="btn sm ghost" onClick={() => setManaging(!managing)}>{cats?.categories.length ? "Manage categories" : "+ Create categories"}</button>
-        {tag && tag !== NONE && <button type="button" className="btn sm wa segsend" onClick={() => setSending(true)}>Send a campaign to {tag}</button>}
+        {tag && tag !== NONE && <span className="segsend">
+          <Link className="btn sm" href={`/quotes/new?category=${encodeURIComponent(tag)}`}>Send a quote to {tag}</Link>
+          {business.campaigns_enabled !== false && <button type="button" className="btn sm wa" onClick={() => setSending(true)}>Send a campaign to {tag}</button>}
+        </span>}
       </div>
       {managing && cats && <CategoryManager cats={cats} onSaved={reloadAfterManage} onClose={() => setManaging(false)} />}
       {cats && !cats.categories.length && !managing && (

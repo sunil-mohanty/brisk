@@ -108,6 +108,8 @@ class Business(Base):
     link_views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Off until the platform admin switches it on for this salon.
     link_page_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Add-on: campaigns (social posting, WhatsApp blasts to client groups). Switched on/off per business in Admin.
+    campaigns_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     # --- opening hours, used to offer free slots to clients who accept a quote ---
     open_time: Mapped[str] = mapped_column(String(5), default="10:00", server_default="10:00")
     close_time: Mapped[str] = mapped_column(String(5), default="22:00", server_default="22:00")

@@ -4,7 +4,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .security import manager_writes, require_manager, require_perm
+from .security import manager_writes, require_campaigns, require_manager, require_perm
 from .db import Base, engine
 from .timing import TimingMiddleware
 from .routers import admin, appointments, auth, campaigns, catalog, customers, dashboard, inventory, leads, linkpage, media, messages, public, qr, quotes, services, social, staff_routes, team, whatsapp_hook
@@ -33,7 +33,7 @@ _GUARDS = {
     customers: [Depends(require_perm("clients"))], leads: [Depends(require_perm("clients"))],
     quotes: [Depends(require_perm("clients"))], services: [Depends(require_perm("clients"))],
     qr: [Depends(require_manager)], dashboard: [Depends(require_manager)], linkpage: [Depends(require_manager)],
-    campaigns: [Depends(require_manager)], inventory: [Depends(require_manager)], messages: [Depends(require_manager)],
+    campaigns: [Depends(require_manager), Depends(require_campaigns)], inventory: [Depends(require_manager)], messages: [Depends(require_manager)],
     media: [Depends(require_manager)],  # social.py guards its own routes (its OAuth callback has no login)
     catalog: [Depends(manager_writes)], team: [Depends(manager_writes)],
 }

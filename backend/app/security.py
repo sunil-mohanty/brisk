@@ -117,6 +117,16 @@ def require_perm(perm: str):
     return dep
 
 
+ADDON_OFF = "Campaigns is an add-on that isn't switched on for your account. Ask us to switch it on."
+
+
+def require_campaigns(user: User = Depends(current_user)) -> User:
+    """The Campaigns add-on: social posting, campaign links and WhatsApp blasts to client groups."""
+    if not user.business.campaigns_enabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "addon_off", "message": ADDON_OFF})
+    return user
+
+
 def require_admin(user: User = Depends(current_user)) -> User:
     if not is_admin(user):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")

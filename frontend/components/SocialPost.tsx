@@ -22,7 +22,7 @@ const FORMATS = [
 ] as const;
 
 /** Post a campaign to the salon's Facebook Page, Instagram and YouTube channel in one go. */
-export function SocialPost({ c, onChange }: { c: Campaign; onChange?: (c: Campaign) => void }) {
+export function SocialPost({ c, onChange, prefer }: { c: Campaign; onChange?: (c: Campaign) => void; prefer?: string[] }) {
   const [st, setSt] = useState<SocialStatus | null>(null);
   const [posts, setPosts] = useState<CampaignPost[] | null>(null);
   const [pick, setPick] = useState<Set<SocialProvider>>(new Set());
@@ -44,7 +44,9 @@ export function SocialPost({ c, onChange }: { c: Campaign; onChange?: (c: Campai
   useEffect(() => {
     api.get<SocialStatus>("/social").then((s) => {
       setSt(s);
-      setPick(new Set(s.accounts.filter((a) => a.selected && !a.error).map((a) => a.provider)));
+      // Start with the channels chosen when the campaign was made (else every connected account)
+      const ok = s.accounts.filter((a) => a.selected && !a.error).map((a) => a.provider);
+      setPick(new Set(prefer?.length ? ok.filter((p) => prefer.includes(p)) : ok));
     }).catch(() => setSt({ meta_ready: false, google_ready: false, accounts: [] }));
     loadPosts();
     if (window.location.hash === "#post") setTimeout(() => document.getElementById("post")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);

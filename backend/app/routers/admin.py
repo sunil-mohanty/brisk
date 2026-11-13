@@ -199,6 +199,7 @@ class SmeDetail(SmeRow):
     trn: str | None
     admin_note: str | None
     link_page_enabled: bool = False
+    campaigns_enabled: bool = True
     slug: str | None = None
     steps: list[dict]
     active_days: list[date]
@@ -214,6 +215,7 @@ class SmeUpdate(BaseModel):
     status: str | None = Field(default=None, pattern="^(active|suspended)$")
     admin_note: str | None = Field(default=None, max_length=5000)
     link_page_enabled: bool | None = None
+    campaigns_enabled: bool | None = None
 
 
 class PaymentIn(BaseModel):
@@ -391,6 +393,7 @@ def _detail(db: Session, b: Business) -> SmeDetail:
         trn=b.trn,
         admin_note=b.admin_note,
         link_page_enabled=b.link_page_enabled,
+        campaigns_enabled=b.campaigns_enabled,
         slug=b.slug,
         steps=[{"key": k, "label": label, "done": bool(steps[k]), "date": steps[k] if isinstance(steps[k], date) else None} for k, label in STEPS],
         active_days=list(days),
@@ -423,6 +426,8 @@ def update_sme(sme_id: int, body: SmeUpdate, admin: User = Depends(require_admin
         record(db, b.id, "account_" + ("paused" if b.status == "suspended" else "reactivated"))
     if changes.get("link_page_enabled") is not None:
         record(db, b.id, "link_page_" + ("enabled" if b.link_page_enabled else "disabled"))
+    if changes.get("campaigns_enabled") is not None:
+        record(db, b.id, "campaigns_" + ("enabled" if b.campaigns_enabled else "disabled"))
     db.commit()
     return _detail(db, b)
 

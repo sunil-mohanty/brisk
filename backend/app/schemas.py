@@ -63,6 +63,7 @@ class BusinessOut(ORM):
     trial_ends_at: date | None = None
     slug: str | None = None
     link_page_enabled: bool = False
+    campaigns_enabled: bool = True  # the Campaigns add-on
     open_time: str = "10:00"
     close_time: str = "22:00"
     closed_days: str = ""
@@ -1063,8 +1064,11 @@ class BookingRequestIn(BaseModel):
 
 # ---------- bulk quotes ----------
 class BulkQuoteIn(BaseModel):
-    customer_ids: list[int] = Field(min_length=1, max_length=500)
-    items: list[QuoteItemIn] = Field(min_length=1, max_length=50)
+    customer_ids: list[int] = Field(default=[], max_length=500)
+    new_customers: list[CustomerIn] = Field(default=[], max_length=50)  # brand-new clients, saved to the client list
+    items: list[QuoteItemIn] = Field(default=[], max_length=50)  # may be empty when a picture/brochure is attached
+    attachment_id: int | None = None
+    ai_art_id: int | None = None
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     vat_rate: Decimal | None = Field(default=None, ge=0, le=100)
     valid_days: int = Field(default=7, ge=1, le=365)

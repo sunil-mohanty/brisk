@@ -12,16 +12,23 @@ import type { Campaign, Quote } from "@/lib/types";
 import { duration } from "@/lib/vocab";
 import { SocialPost } from "@/components/SocialPost";
 import { SendToClients } from "@/components/Segments";
+import { AddonGate, ChannelIcon, useCampaignsOn } from "@/components/QuoteCampaign";
 
 export default function CampaignPage() {
+  const on = useCampaignsOn();
+  if (!on) return <><PageHead title="Campaign" /><AddonGate /></>;
   return <Suspense fallback={<Loading />}><CampaignDetail /></Suspense>;
 }
+
+type Launch = "social" | "whatsapp" | "link";
 
 function CampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
   const editing = params.get("edit") === "1";
   const sendTag = params.get("send");
+  const prefer = (params.get("ch") ?? "").split(",").filter(Boolean);
+  const [launch, setLaunch] = useState<Launch>((["social", "whatsapp", "link"] as const).find((x) => x === params.get("launch")) ?? "social");
   const router = useRouter();
   const { business } = useSession();
   const [c, setC] = useState<Campaign | null>(null);
@@ -70,35 +77,62 @@ function CampaignDetail() {
         <div className="kpi"><span>Accepted</span><strong>{c.accepted}</strong><em>{c.views ? `${Math.round((c.accepted / c.views) * 100)}% of views` : "no views yet"}</em></div>
         <div className="kpi"><span>Booked a time</span><strong>{c.booked}</strong><em>{c.accepted - c.booked} still to book in</em></div>
       </div>
-      <SocialPost c={c} onChange={setC} />
-      <div style={{ marginTop: 16 }}>
-        <SendToClients campaignId={c.id} initialTag={sendTag} onSent={(n) => setC((x) => x && { ...x, sent_whatsapp: (x.sent_whatsapp ?? 0) + n })} />
-      </div>
+      <section className="launch" id="send">
+        <div className="launch-h">
+          <h2>Send it out</h2>
+          <p className="muted">Choose a channel. You can use all of them, one after another.</p>
+        </div>
+        <div className="launch-tabs" role="tablist" aria-label="Channel">
+          <button type="button" role="tab" aria-selected={launch === "social"} onClick={() => setLaunch("social")}>
+            <span className="chan-ico">{ChannelIcon.facebook()}{ChannelIcon.instagram()}</span><span><b>Facebook & Instagram</b><small>Post with the picture</small></span>
+          </button>
+          <button type="button" role="tab" aria-selected={launch === "whatsapp"} onClick={() => setLaunch("whatsapp")}>
+            <span className="chan-ico">{ChannelIcon.whatsapp()}</span><span><b>WhatsApp to clients</b><small>{c.sent_whatsapp ? `${c.sent_whatsapp} sent so far` : "All clients or a category"}</small></span>
+          </button>
+          <button type="button" role="tab" aria-selected={launch === "link"} onClick={() => setLaunch("link")}>
+            <span className="chan-ico">{ChannelIcon.link()}</span><span><b>Link & QR code</b><small>TikTok, ads, posters</small></span>
+          </button>
+        </div>
+        {launch === "social" && <SocialPost c={c} onChange={setC} prefer={prefer} />}
+        {launch === "whatsapp" && <SendToClients campaignId={c.id} initialTag={sendTag} onSent={(n) => setC((x) => x && { ...x, sent_whatsapp: (x.sent_whatsapp ?? 0) + n })} />}
+        {launch === "link" && (
+          <div className="detail">
+            <section className="panel">
+              <h2>Share the link yourself <span className="muted small">TikTok, Snapchat, WhatsApp status, ads</span></h2>
+              <div className="linkbox">
+                <input readOnly value={c.public_url} onFocus={(e) => e.target.select()} aria-label="Campaign link" />
+                <button className="btn" onClick={() => copyText(c.public_url)}>Copy link</button>
+              </div>
+              <p className="small muted" style={{ margin: "14px 0 6px" }}>Caption for your post or ad:</p>
+              <p className="msg">{c.share_text}</p>
+              <div className="acts" style={{ justifyContent: "flex-start" }}>
+                <button className="btn" onClick={() => copyText(c.share_text)}>Copy caption</button>
+                <a className="btn" href={`/c/${c.token}?preview=1`} target="_blank" rel="noreferrer">Preview offer page</a>
+              </div>
+              {c.whatsapp_accept_url && (
+                <>
+                  <p className="small muted" style={{ margin: "14px 0 6px" }}>&quot;Accept on WhatsApp&quot; link, for a WhatsApp button on an ad or a story:</p>
+                  <div className="linkbox">
+                    <input readOnly value={c.whatsapp_accept_url} onFocus={(e) => e.target.select()} aria-label="Accept on WhatsApp link" />
+                    <button className="btn" onClick={() => copyText(c.whatsapp_accept_url!)}>Copy</button>
+                  </div>
+                </>
+              )}
+            </section>
+            <section className="panel" style={{ textAlign: "center" }}>
+              <h2>QR code</h2>
+              <QrPreview id={c.id} />
+              <p className="small muted">For posters, flyers, video end screens and the mirror at reception.</p>
+              <div className="acts" style={{ justifyContent: "center" }}>
+                <button className="btn sm" onClick={() => download(`/campaigns/${c.id}/qr?fmt=png`, `${safe}.png`)}>PNG</button>
+                <button className="btn sm" onClick={() => download(`/campaigns/${c.id}/qr?fmt=svg`, `${safe}.svg`)}>SVG for print</button>
+              </div>
+            </section>
+          </div>
+        )}
+      </section>
       <div className="detail" style={{ marginTop: 16 }}>
         <div className="stack">
-          <section className="panel">
-            <h2>Or share the link yourself <span className="muted small">TikTok, Snapchat, WhatsApp status, ads</span></h2>
-            <div className="linkbox">
-              <input readOnly value={c.public_url} onFocus={(e) => e.target.select()} aria-label="Campaign link" />
-              <button className="btn" onClick={() => copyText(c.public_url)}>Copy link</button>
-            </div>
-            <p className="small muted" style={{ margin: "14px 0 6px" }}>Caption for your post or ad:</p>
-            <p className="msg">{c.share_text}</p>
-            <div className="acts" style={{ justifyContent: "flex-start" }}>
-              <button className="btn" onClick={() => copyText(c.share_text)}>Copy caption</button>
-              <a className="btn wa" href={`https://wa.me/?text=${encodeURIComponent(c.share_text)}`} target="_blank" rel="noreferrer">Share on WhatsApp</a>
-              <a className="btn" href={`/c/${c.token}?preview=1`} target="_blank" rel="noreferrer">Preview offer page</a>
-            </div>
-            {c.whatsapp_accept_url && (
-              <>
-                <p className="small muted" style={{ margin: "14px 0 6px" }}>&quot;Accept on WhatsApp&quot; link, for a WhatsApp button on an ad or a story. Clients accept and pick a time in the chat:</p>
-                <div className="linkbox">
-                  <input readOnly value={c.whatsapp_accept_url} onFocus={(e) => e.target.select()} aria-label="Accept on WhatsApp link" />
-                  <button className="btn" onClick={() => copyText(c.whatsapp_accept_url!)}>Copy</button>
-                </div>
-              </>
-            )}
-          </section>
           <section className="panel">
             <h2>Clients who accepted <span className="muted small">{responses?.length ?? 0}</span></h2>
             {!responses ? <Loading /> : responses.length === 0 ? <div className="empty">Nobody yet. Share the link or QR code to start.</div> : (
@@ -117,15 +151,6 @@ function CampaignDetail() {
           </section>
         </div>
         <div className="stack">
-          <section className="panel" style={{ textAlign: "center" }}>
-            <h2>QR code</h2>
-            <QrPreview id={c.id} />
-            <p className="small muted">For posters, flyers, video end screens and the mirror at reception.</p>
-            <div className="acts" style={{ justifyContent: "center" }}>
-              <button className="btn sm" onClick={() => download(`/campaigns/${c.id}/qr?fmt=png`, `${safe}.png`)}>PNG</button>
-              <button className="btn sm" onClick={() => download(`/campaigns/${c.id}/qr?fmt=svg`, `${safe}.svg`)}>SVG for print</button>
-            </div>
-          </section>
           <section className="panel">
             <h2>The offer</h2>
             <div className="list">

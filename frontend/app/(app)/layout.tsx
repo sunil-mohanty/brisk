@@ -27,7 +27,7 @@ function staffGroups(perms: string[], w: Words): [string, NavItem[]][] {
     ...(clients ? ([["Clients", [
       ["/customers", "Clients", "customers"],
       ["/leads", "Enquiries", "enquiries"],
-      ["/quotes", "Quotes", "quotes"],
+      ["/quotes", "Quote & Campaign", "quotes"],
       ["/services", w.Visits, "visits"],
     ]]] as [string, NavItem[]][]) : []),
   ];
@@ -41,7 +41,7 @@ function groups(linkPage: boolean, w: Words): [string, NavItem[]][] {
       ["/dashboard", "Today", "today"],
       ["/appointments", w.Appointments, "appointments"],
       ["/leads", "Enquiries", "enquiries"],
-      ["/quotes", "Quotes", "quotes"],
+      ["/quotes", "Quote & Campaign", "quotes"],
       ...(linkPage ? ([["/link", "Link page", "link"]] as NavItem[]) : []),
     ]],
     ["People", [

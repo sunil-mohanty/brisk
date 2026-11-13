@@ -2,12 +2,14 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { CustomerPicker } from "@/components/CustomerPicker";
+import { Recipients, type Chosen } from "@/components/Recipients";
+import { SendList } from "@/components/SendList";
+import { StepCard } from "@/components/QuoteCampaign";
 import { useSession } from "@/components/session";
-import { ErrorBox, Loading, PageHead } from "@/components/ui";
+import { ErrorBox, Loading, PageHead, toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money } from "@/lib/format";
-import type { CatalogItem, CustomerRef, Lead, Quote } from "@/lib/types";
+import type { CatalogItem, Lead, Quote } from "@/lib/types";
 import Link from "next/link";
 import { vocab } from "@/lib/vocab";
 import { Tip } from "@/components/Tips";
@@ -31,8 +33,12 @@ function QuoteForm() {
   const W = words(business.business_type);
 
   const [lead, setLead] = useState<Lead | null>(null);
-  const [ref, setRef] = useState<CustomerRef>({});
-  const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerId, setCustomerId] = useState<number | null>(null); // fixed client (from an enquiry, or when editing)
+  const [lockedName, setLockedName] = useState("");
+  const [chosen, setChosen] = useState<Chosen>({ ids: new Set(), fresh: [] });
+  const [made, setMade] = useState<Quote[] | null>(null);
+  const preCustomer = Number(params.get("customer")) || undefined;
+  const preCategory = params.get("category") ?? undefined;
   const [rows, setRows] = useState<Row[]>([{ ...blank }]);
   const [discount, setDiscount] = useState("0");
   const [vat, setVat] = useState(business.default_vat_rate);
@@ -56,6 +62,7 @@ function QuoteForm() {
         setLead(l);
         if (l) {
           setCustomerId(l.customer.id);
+          setLockedName(l.customer.name);
           if (l.requirement) setRows([{ ...blank, description: l.requirement.slice(0, 300) }]);
         }
         setReady(true);
@@ -64,6 +71,7 @@ function QuoteForm() {
     if (editId) {
       api.get<Quote>(`/quotes/${editId}`).then((q) => {
         setCustomerId(q.customer.id);
+        setLockedName(q.customer.name);
         setRows(q.items.map((i) => ({ description: i.description, quantity: String(Number(i.quantity)), unit_price: String(Number(i.unit_price)) })));
         setDiscount(String(Number(q.totals.discount)));
         setVat(q.vat_rate);
@@ -101,15 +109,19 @@ function QuoteForm() {
   };
   const newLines = rows.filter((r) => r.description.trim() && r.unit_price !== "" && !byName.has(r.description.trim().toLowerCase()));
 
+  const locked = !!lead || !!editId;
+  const count = locked ? 1 : chosen.ids.size + chosen.fresh.length;
+
   async function save() {
     const items = rows.filter((r) => r.description.trim() && r.unit_price !== "").map((r) => ({
       description: r.description.trim(), quantity: Number(r.quantity) || 1, unit_price: Number(r.unit_price),
     }));
-    if (!items.length && !attachment) return setError("Add at least one item with a price, or attach a picture or brochure.");
+    if (!items.length && !attachment) return setError("Step 1: add at least one item with a price, or a picture or brochure.");
+    if (!count) return setError("Step 2: choose who gets this quote, or add a new client.");
+    if (count > 500) return setError("Up to 500 clients at a time. Untick some, or send it in two goes.");
     setBusy(true);
     setError(null);
-    const body = {
-      ...(lead ? { lead_id: lead.id } : ref),
+    const offer = {
       items,
       discount: Number(discount) || 0,
       vat_rate: Number(vat),
@@ -120,92 +132,126 @@ function QuoteForm() {
       ai_art_id: attachment?.ai && attachment.id > 0 ? attachment.id : null,
     };
     try {
-      const q = editId ? await api.put<Quote>(`/quotes/${editId}`, body) : await api.post<Quote>("/quotes", body);
+      let one: Quote | null = null;
+      let many: Quote[] | null = null;
+      if (editId) one = await api.put<Quote>(`/quotes/${editId}`, { customer_id: customerId, ...offer });
+      else if (lead) one = await api.post<Quote>("/quotes", { lead_id: lead.id, ...offer });
+      else if (count === 1) {
+        const who = chosen.ids.size ? { customer_id: [...chosen.ids][0] } : { new_customer: { name: chosen.fresh[0].name, phone: chosen.fresh[0].phone } };
+        one = await api.post<Quote>("/quotes", { ...who, ...offer });
+      } else {
+        many = await api.post<Quote[]>("/quotes/bulk", {
+          customer_ids: [...chosen.ids], new_customers: chosen.fresh.map((n) => ({ name: n.name, phone: n.phone })), ...offer,
+        });
+      }
       // Keep the price list up to date (never blocks the quote).
       await Promise.allSettled([
         saveNew && newLines.length ? api.post("/catalog", newLines.map((r) => ({ name: r.description.trim(), unit_price: Number(r.unit_price) }))) : null,
         api.post("/catalog/used", items.map((i) => i.description).filter((d) => byName.has(d.toLowerCase()))),
       ]);
-      router.push(`/quotes/${q.id}${editId ? "" : "?created=1"}`);
+      if (many) { setMade(many); toast(`${many.length} quotes ready to send`); window.scrollTo(0, 0); }
+      else if (one) router.push(`/quotes/${one.id}${editId ? "" : "?created=1"}`);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
     }
   }
 
+  if (made) return <SendList made={made} />;
   if (!ready) return <Loading />;
   const cur = business.currency;
   const v = vocab(business.business_type);
 
+  const items = rows.filter((r) => r.description.trim() && r.unit_price !== "");
+  const offered = items.length > 0 || !!attachment;
   return (
     <>
       <PageHead
-        eyebrow="Quote"
+        eyebrow="Quote · WhatsApp"
         title={editId ? "Edit quote" : "New quote"}
-        sub={lead ? `For ${lead.customer.name}'s enquiry via ${lead.source}.` : `Client, ${W.services}, price, VAT. You'll get a link to send on WhatsApp.`}
+        sub={lead ? `For ${lead.customer.name}'s enquiry via ${lead.source}.` : "Two steps: what you're offering, then who gets it. Each client gets their own link to accept on WhatsApp."}
       />
-      <div className="card">
-        <ErrorBox error={error} />
-        <div className="form" style={{ marginTop: error ? 12 : 0 }}>
-          <Tip id="qn.customer" order={1} text="Search your clients by name or mobile number, or type a new name to add one.">
-            <CustomerPicker value={customerId} onChange={setRef} locked={!!lead || !!editId} />
-          </Tip>
-          <label className="full"><span>Occasion or booking details <span className="hint">(optional)</span></span><input id="reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={v.refPlaceholder} maxLength={200} /></label>
-          <div className="full">
-            {catalog.length > 0 && (
-              <div className="pricechips">
-                <span className="small muted">Tap to add from your menu:</span>
-                <div className="chips-inline">
-                  {catalog.slice(0, 8).map((c) => (
-                    <button type="button" key={c.id} className="chip" onClick={() => addFromList(c)}>+ {c.name} <span className="mono">{money(c.unit_price, cur)}</span></button>
-                  ))}
-                  <Link className="chip linkchip" href="/menu">Edit menu</Link>
+      <ErrorBox error={error} />
+      <div className="qc-flow" style={{ marginTop: error ? 12 : 0 }}>
+        <StepCard n={1} title="What are you offering?" done={offered} sub={`Pick ${W.services} from your menu or type them, or just attach a picture or brochure.`}>
+          <div className="form">
+            <label className="full"><span>Offer name or occasion <span className="hint">(optional, shown on the quote)</span></span><input id="reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={v.refPlaceholder} maxLength={200} /></label>
+            <div className="full">
+              {catalog.length > 0 && (
+                <div className="pricechips">
+                  <span className="small muted">Tap to add from your menu:</span>
+                  <div className="chips-inline">
+                    {catalog.slice(0, 10).map((c) => (
+                      <button type="button" key={c.id} className="chip" onClick={() => addFromList(c)}>+ {c.name} <span className="mono">{money(c.unit_price, cur)}</span></button>
+                    ))}
+                    <Link className="chip linkchip" href="/menu">Edit menu</Link>
+                  </div>
                 </div>
-              </div>
-            )}
-            <Tip id="qn.items" order={2} text={`One line per ${W.service}: what it is, how many, and the price each. VAT and the total are worked out for you below.`}>
-            <div className="items">
-              <div className="item itemhead" aria-hidden="true"><span>Service</span><span>Qty</span><span>Price each ({cur})</span><span /></div>
-              {rows.map((r, i) => (
-                <div className="item" key={i}>
-                  <span className="ifield" data-l="Item"><input aria-label="Item" list="pricelist" value={r.description} onChange={(e) => update(i, "description", e.target.value)} placeholder={i ? "Another item" : v.itemPlaceholder} /></span>
-                  <span className="ifield" data-l="Qty"><input aria-label="Quantity" type="number" min="0.01" step="any" inputMode="decimal" value={r.quantity} onChange={(e) => update(i, "quantity", e.target.value)} /></span>
-                  <span className="ifield" data-l={`Price each (${cur})`}><input aria-label={`Price each (${cur})`} type="number" min="0" step="0.01" inputMode="decimal" value={r.unit_price} onChange={(e) => update(i, "unit_price", e.target.value)} placeholder="0.00" /></span>
-                  <button type="button" aria-label="Remove item" onClick={() => rows.length > 1 && setRows(rows.filter((_, n) => n !== i))}>×</button>
-                </div>
-              ))}
-            </div>
-            </Tip>
-            <datalist id="pricelist">{catalog.map((c) => <option key={c.id} value={c.name} />)}</datalist>
-            <div className="itemfoot">
-              <button type="button" className="btn sm" onClick={() => setRows([...rows, { ...blank }])}>+ Add {W.service}</button>
-              {newLines.length > 0 && (
-                <label className="check">
-                  <input type="checkbox" checked={saveNew} onChange={(e) => setSaveNew(e.target.checked)} />
-                  Save {newLines.length === 1 ? `this ${W.service}` : `these ${newLines.length} ${W.services}`} to my {W.vertical === "real_estate" ? "listings" : "menu"}
-                </label>
               )}
+              <Tip id="qn.items" order={2} text={`One line per ${W.service}: what it is, how many, and the price each. VAT and the total are worked out for you.`}>
+              <div className="items">
+                <div className="item itemhead" aria-hidden="true"><span>Service</span><span>Qty</span><span>Price each ({cur})</span><span /></div>
+                {rows.map((r, i) => (
+                  <div className="item" key={i}>
+                    <span className="ifield" data-l="Item"><input aria-label="Item" list="pricelist" value={r.description} onChange={(e) => update(i, "description", e.target.value)} placeholder={i ? "Another item" : v.itemPlaceholder} /></span>
+                    <span className="ifield" data-l="Qty"><input aria-label="Quantity" type="number" min="0.01" step="any" inputMode="decimal" value={r.quantity} onChange={(e) => update(i, "quantity", e.target.value)} /></span>
+                    <span className="ifield" data-l={`Price each (${cur})`}><input aria-label={`Price each (${cur})`} type="number" min="0" step="0.01" inputMode="decimal" value={r.unit_price} onChange={(e) => update(i, "unit_price", e.target.value)} placeholder="0.00" /></span>
+                    <button type="button" aria-label="Remove item" onClick={() => rows.length > 1 && setRows(rows.filter((_, n) => n !== i))}>×</button>
+                  </div>
+                ))}
+              </div>
+              </Tip>
+              <datalist id="pricelist">{catalog.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+              <div className="itemfoot">
+                <button type="button" className="btn sm" onClick={() => setRows([...rows, { ...blank }])}>+ Add {W.service}</button>
+                {newLines.length > 0 && (
+                  <label className="check">
+                    <input type="checkbox" checked={saveNew} onChange={(e) => setSaveNew(e.target.checked)} />
+                    Save {newLines.length === 1 ? `this ${W.service}` : `these ${newLines.length} ${W.services}`} to my {W.vertical === "real_estate" ? "listings" : "menu"}
+                  </label>
+                )}
+              </div>
             </div>
+            <label>Discount ({cur})<input id="discount" type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
+            <label>VAT %<input id="vat" type="number" min="0" max="100" step="0.5" value={vat} onChange={(e) => setVat(e.target.value)} /></label>
+            <label>Valid for (days)<input id="valid" type="number" min="1" max="365" value={validDays} onChange={(e) => setValidDays(e.target.value)} /></label>
+            <div className="full">
+              <span className="flabel">Picture or brochure <span className="hint">(optional: upload your flyer or price list, or create one with AI)</span></span>
+              <AttachField value={attachment} onChange={setAttachment} />
+            </div>
+            <label className="full">Notes for your client<textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={v.quoteNotesPlaceholder} /></label>
           </div>
-          <label>Discount ({cur})<input id="discount" type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
-          <label>VAT %<input id="vat" type="number" min="0" max="100" step="0.5" value={vat} onChange={(e) => setVat(e.target.value)} /></label>
-          <label>Valid for (days)<input id="valid" type="number" min="1" max="365" value={validDays} onChange={(e) => setValidDays(e.target.value)} /></label>
-          <div className="full">
-            <span className="flabel">Picture or brochure <span className="hint">(optional: upload your flyer or price list, or create one with AI)</span></span>
-            <AttachField value={attachment} onChange={setAttachment} />
+          <div className="totals">
+            <div><span>Subtotal</span><span className="mono">{money(totals.sub, cur)}</span></div>
+            {totals.disc > 0 && <div><span>Discount</span><span className="mono">−{money(totals.disc, cur)}</span></div>}
+            <div><span>VAT {vat}%</span><span className="mono">{money(totals.vat, cur)}</span></div>
+            <div className="grand"><span>Total{count > 1 ? " per client" : ""}</span><span className="mono">{money(totals.total, cur)}</span></div>
           </div>
-          <label className="full">Notes for your client<textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={v.quoteNotesPlaceholder} /></label>
+        </StepCard>
+
+        <StepCard n={2} title="Who gets it?" done={count > 0}
+          sub={locked ? undefined : "Tick one client or many, add a whole category, or add a brand-new client. Everyone gets their own link."}>
+          {locked ? (
+            <div className="rcp-locked"><b>{lockedName}</b><span className="muted">{lead ? "from their enquiry" : "this quote's client"}</span></div>
+          ) : (
+            <Tip id="qn.customer" order={1} text="Tick clients from your list, or press + New client to add someone new.">
+              <Recipients value={chosen} onChange={setChosen} preselect={{ customer: preCustomer, category: preCategory }} />
+            </Tip>
+          )}
+        </StepCard>
+      </div>
+
+      <div className="qc-sendbar" role="region" aria-label="Create">
+        <div className="qc-sendbar-sum">
+          <b>{count === 0 ? "No clients chosen yet" : count === 1 ? `1 client · ${money(totals.total, cur)}` : `${count} clients · ${money(totals.total, cur)} each`}</b>
+          <span className="small muted">{editId ? "Saving keeps the same link." : "Next: send on WhatsApp. Nothing goes out until you press send."}</span>
         </div>
-        <div className="totals">
-          <div><span>Subtotal</span><span className="mono">{money(totals.sub, cur)}</span></div>
-          {totals.disc > 0 && <div><span>Discount</span><span className="mono">−{money(totals.disc, cur)}</span></div>}
-          <div><span>VAT {vat}%</span><span className="mono">{money(totals.vat, cur)}</span></div>
-          <div className="grand"><span>Total</span><span className="mono">{money(totals.total, cur)}</span></div>
-        </div>
-        <div className="foot">
-          <button className="btn" onClick={() => router.back()}>Cancel</button>
-          <Tip id="qn.create" order={3} text="Saves the quote and gives you a link to send. Nothing goes to your client until you send it."><button className="btn primary" onClick={save} disabled={busy}>{busy ? "Saving…" : editId ? "Save changes" : "Create quote & get link"}</button></Tip>
-        </div>
+        <button className="btn" onClick={() => router.back()}>Cancel</button>
+        <Tip id="qn.create" order={3} text="Creates the quote(s). Then you send each one on WhatsApp.">
+          <button className="btn primary" onClick={save} disabled={busy || !count}>
+            {busy ? "Saving…" : editId ? "Save changes" : count > 1 ? `Create ${count} quotes` : "Create quote"}
+          </button>
+        </Tip>
       </div>
     </>
   );

@@ -95,14 +95,26 @@ def create_quote(body: s.QuoteIn, user: User = Depends(current_user), db: Sessio
 
 @router.post("/bulk", response_model=list[s.QuoteOut], status_code=201)
 def create_bulk(body: s.BulkQuoteIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    """The same quote for many clients at once, one link each, to send on WhatsApp."""
+    """The same quote for many clients at once, one link each, to send on WhatsApp. Brand-new clients
+    are saved to the client list first (a number that's already saved is matched to that client)."""
     biz = db.scalar(select(Business).where(Business.id == user.business_id).with_for_update())
     ids = list(dict.fromkeys(body.customer_ids))
     customers = db.scalars(select(Customer).where(Customer.business_id == biz.id, Customer.id.in_(ids))).all()
     if len(customers) != len(ids):
         raise HTTPException(404, "Some clients weren't found")
+    customers = sorted(customers, key=lambda x: ids.index(x.id))
+    for nc in body.new_customers:
+        c = resolve_customer(db, biz.id, s.CustomerRef(new_customer=nc))
+        if c.id not in {x.id for x in customers}:
+            customers.append(c)
+    if not customers:
+        raise HTTPException(422, "Choose at least one client.")
+    upload = _own_upload(db, body.attachment_id, biz.id) if body.attachment_id else None
+    ai_pic = _own_ai(db, body.ai_art_id, biz.id) if body.ai_art_id else None
+    if not body.items and not upload and not ai_pic:
+        raise HTTPException(422, "Add at least one service with a price, or add a picture or brochure.")
     made = []
-    for c in sorted(customers, key=lambda x: ids.index(x.id)):
+    for c in customers:
         token = new_token(10)
         while db.scalar(select(Quote.id).where(Quote.token == token)):
             token = new_token(10)
@@ -113,6 +125,14 @@ def create_bulk(body: s.BulkQuoteIn, user: User = Depends(current_user), db: Ses
         )
         biz.next_quote_number += 1
         db.add(q)
+        db.flush()
+        # One picture shared by every quote in the group (the first quote "owns" it).
+        if upload:
+            q.file_id, q.design_style = upload.id, "upload"
+            upload.quote_id = upload.quote_id or q.id
+        if ai_pic:
+            q.art_id, q.design_style = ai_pic.id, "photo"
+            ai_pic.quote_id = ai_pic.quote_id or q.id
         made.append(q)
     record(db, biz.id, "quote_created", f"{len(made)} quotes (bulk)")
     db.commit()

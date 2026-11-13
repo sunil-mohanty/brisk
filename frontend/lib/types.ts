@@ -18,6 +18,7 @@ export interface Business {
   trial_ends_at: string | null;
   slug: string | null;
   link_page_enabled: boolean;
+  campaigns_enabled?: boolean;
   open_time: string;
   close_time: string;
   closed_days: string;
@@ -444,6 +445,7 @@ export interface AdminSmeDetail extends AdminSme {
   trn: string | null;
   admin_note: string | null;
   link_page_enabled: boolean;
+  campaigns_enabled?: boolean;
   slug: string | null;
   steps: { key: string; label: string; done: boolean; date: string | null }[];
   active_days: string[];

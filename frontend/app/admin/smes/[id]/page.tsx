@@ -111,6 +111,15 @@ export default function SmeDetailPage() {
                 </span>
               </span>
             </label>
+            <label className="check" style={{ alignItems: "flex-start", marginTop: 12 }}>
+              <input type="checkbox" checked={d.campaigns_enabled} onChange={(e) => patch({ campaigns_enabled: e.target.checked }, e.target.checked ? "Campaigns add-on switched on" : "Campaigns add-on switched off")} />
+              <span>
+                <b>Campaigns add-on</b> (Facebook, Instagram, WhatsApp blasts to client groups, campaign links & QR)
+                <span className="hint" style={{ display: "block" }}>
+                  {d.campaigns_enabled ? "On. They can create campaigns and post them." : "Off. They see Campaigns as an add-on to ask for. Offer links already shared keep working."}
+                </span>
+              </span>
+            </label>
           </section>
           <section className="panel">
             <h2>Account</h2>

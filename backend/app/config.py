@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Password reset emails go through Resend's HTTPS API (Railway blocks SMTP on Hobby).
     # Without a key, the reset link is written to the API log instead.
     resend_api_key: str | None = None
+    # Whether new sign-ups get the Campaigns add-on switched on (admins can change it per business).
+    campaigns_on_signup: bool = True
     email_from: str = "Tressa <no-reply@tressa.app>"
     password_reset_minutes: int = 60
     # Emails (comma-separated) that can open /admin.

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
+import { AddonGate, ChannelIcon, Steps, useCampaignsOn } from "@/components/QuoteCampaign";
 import { useSession } from "@/components/session";
 import { Tip } from "@/components/Tips";
 import { copyText, ErrorBox, Loading, PageHead, Pill, QuotePill } from "@/components/ui";
@@ -12,107 +13,152 @@ import { fmtDate, fmtDateTime, fmtDay, fmtTime, money, uaeDate } from "@/lib/for
 import type { Campaign, Quote } from "@/lib/types";
 import { WA_LABEL } from "@/lib/whatsapp";
 
-type Tab = "clients" | "campaigns";
+type Tab = "quotes" | "campaigns";
 
-export default function QuotesPage() {
-  return <Suspense fallback={<Loading />}><Quotes /></Suspense>;
+export default function QuoteCampaignPage() {
+  return <Suspense fallback={<Loading />}><QuoteCampaign /></Suspense>;
 }
 
-function Quotes() {
+const waiting = (q: Quote) => q.status === "sent" || q.status === "viewed";
+
+/** Quote & Campaign: the two ways to send an offer, side by side, then everything sent so far. */
+function QuoteCampaign() {
   const params = useSearchParams();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>(params.get("tab") === "campaigns" ? "campaigns" : "clients");
+  const on = useCampaignsOn();
+  const [tab, setTab] = useState<Tab>(params.get("tab") === "campaigns" ? "campaigns" : "quotes");
+  const [quotes, setQuotes] = useState<Quote[] | null>(null);
+  const [camps, setCamps] = useState<Campaign[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.swr<Quote[]>("/quotes", setQuotes).catch((e) => setError(e.message));
+    if (on) api.swr<Campaign[]>("/campaigns", setCamps).catch(() => setCamps([]));
+  }, [on]);
   const go = (t: Tab) => { setTab(t); router.replace(`/quotes?tab=${t}`, { scroll: false }); };
+  const live = (camps ?? []).filter((c) => c.active && !c.expired);
+
   return (
     <>
-      <PageHead
-        title="Quotes"
-        eyebrow={tab === "clients" ? "Sent on WhatsApp" : "For social media & ads"}
-        sub={tab === "clients"
-          ? "Quotes for one client, or the same quote for many clients at once. Clients accept and book a time from the link."
-          : "One public offer for Instagram, TikTok, YouTube or an ad. Anyone can accept it and book a free time."}
-        action={tab === "clients" ? (
-          <>
-            <Link className="btn" href="/quotes/bulk">{Icon.customers()}For many clients</Link>
-            <Tip id="q.new" order={1} text="A quote for one client, sent on WhatsApp. They accept it and can pick a time straight away."><Link className="btn primary" href="/quotes/new">{Icon.quotes()}New quote</Link></Tip>
-          </>
-        ) : <Link className="btn primary" href="/quotes/campaigns/new">{Icon.campaign()}New campaign</Link>}
-      />
-      <div className="tabs2" role="tablist" aria-label="Quote type">
-        <button type="button" role="tab" aria-selected={tab === "clients"} onClick={() => go("clients")}>{Icon.enquiries()}<span><b>Client quotes</b><small>Specific or bulk clients · WhatsApp</small></span></button>
-        <button type="button" role="tab" aria-selected={tab === "campaigns"} onClick={() => go("campaigns")}>{Icon.campaign()}<span><b>Campaign quotes</b><small>Social media, YouTube & ads</small></span></button>
+      <PageHead title="Quote & Campaign" eyebrow="Your offers"
+        sub="Make an offer once, then choose how it goes out: a quote to your clients on WhatsApp, or a campaign for social media and client groups." />
+      <ErrorBox error={error} />
+
+      <div className="qc-choices">
+        <article className="qc-choice">
+          <div className="qc-choice-top">
+            <span className="qc-ico">{Icon.quotes()}</span>
+            <div>
+              <h2>Quote</h2>
+              <p className="qc-for">For your clients, sent on WhatsApp</p>
+            </div>
+          </div>
+          <Steps steps={["Add services & price, or a picture", "Pick one or many clients, or add a new one", "Send on WhatsApp. They accept from the link"]} />
+          <div className="qc-stats">
+            <span><b>{quotes ? quotes.filter(waiting).length : "–"}</b> waiting</span>
+            <span><b>{quotes ? quotes.filter((q) => q.status === "accepted").length : "–"}</b> accepted</span>
+          </div>
+          <Tip id="qc.quote" order={1} text="One quote, sent to one client or a whole list. Each client gets their own link to accept.">
+            <Link className="btn primary qc-go" href="/quotes/new">{Icon.quotes()}New quote</Link>
+          </Tip>
+        </article>
+
+        <article className={`qc-choice camp-choice${on ? "" : " is-locked"}`}>
+          {!on && <span className="addon-badge">Add-on</span>}
+          <div className="qc-choice-top">
+            <span className="qc-ico">{Icon.campaign()}</span>
+            <div>
+              <h2>Campaign</h2>
+              <p className="qc-for">For everyone: social media & client groups</p>
+            </div>
+          </div>
+          <div className="qc-channels" aria-label="Where a campaign can go">
+            <span>{ChannelIcon.facebook()}Facebook</span>
+            <span>{ChannelIcon.instagram()}Instagram</span>
+            <span>{ChannelIcon.whatsapp()}WhatsApp group</span>
+            <span>{ChannelIcon.link()}Link & QR</span>
+          </div>
+          <Steps steps={["Create the offer and its picture", "Choose where it goes", "See who accepts and books"]} />
+          {on ? (
+            <>
+              <div className="qc-stats">
+                <span><b>{camps ? live.length : "–"}</b> live</span>
+                <span><b>{camps ? camps.reduce((a, c) => a + c.accepted, 0) : "–"}</b> accepted</span>
+              </div>
+              <Link className="btn primary qc-go" href="/quotes/campaigns/new">{Icon.campaign()}New campaign</Link>
+            </>
+          ) : <AddonGate compact />}
+        </article>
       </div>
-      {tab === "clients" ? <ClientQuotes /> : <Campaigns />}
+
+      <div className="qc-tabs" role="tablist" aria-label="Sent so far">
+        <button type="button" role="tab" aria-selected={tab === "quotes"} onClick={() => go("quotes")}>Quotes <span>{quotes?.length ?? ""}</span></button>
+        <button type="button" role="tab" aria-selected={tab === "campaigns"} onClick={() => go("campaigns")}>Campaigns <span>{on ? camps?.length ?? "" : "Add-on"}</span></button>
+      </div>
+      {tab === "quotes" ? <QuoteList quotes={quotes} /> : on ? <CampaignList rows={camps} /> : <AddonGate />}
     </>
   );
 }
 
 const FILTERS = [
-  ["all", "All"], ["open", "Waiting for client"], ["awaiting", "Accepted · awaiting booking"], ["booked", "Accepted · booked"], ["declined", "Declined"],
+  ["all", "All"], ["open", "Waiting"], ["awaiting", "Accepted, to book"], ["booked", "Booked"], ["declined", "Declined"],
 ] as const;
 type Filter = (typeof FILTERS)[number][0];
 const match = (q: Quote, f: Filter) =>
-  f === "all" || (f === "open" && (q.status === "sent" || q.status === "viewed")) || (f === "awaiting" && q.status === "accepted" && q.booking_status === "awaiting")
+  f === "all" || (f === "open" && waiting(q)) || (f === "awaiting" && q.status === "accepted" && q.booking_status === "awaiting")
   || (f === "booked" && q.status === "accepted" && q.booking_status === "confirmed") || (f === "declined" && q.status === "rejected");
 
-function ClientQuotes() {
+function QuoteList({ quotes }: { quotes: Quote[] | null }) {
   const { business } = useSession();
-  const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.swr<Quote[]>("/quotes", setQuotes).catch((e) => setError(e.message)); }, []);
-  const rows = (quotes ?? []).filter((q) => match(q, filter));
+  const [q, setQ] = useState("");
+  if (!quotes) return <Loading />;
+  const t = q.trim().toLowerCase();
+  const rows = quotes.filter((x) => match(x, filter) && (!t || x.customer.name.toLowerCase().includes(t) || x.label.toLowerCase().includes(t)));
   return (
     <>
-      <ErrorBox error={error} />
       <div className="filters">
         {FILTERS.map(([k, label]) => (
-          <button key={k} className="chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>{label} <span className="mono">{(quotes ?? []).filter((q) => match(q, k)).length}</span></button>
+          <button key={k} className="chip" aria-pressed={filter === k} onClick={() => setFilter(k)}>{label} <span className="mono">{quotes.filter((x) => match(x, k)).length}</span></button>
         ))}
+        <input className="qc-search" type="search" placeholder="Search client or quote number" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search quotes" />
       </div>
-      {!quotes ? <Loading /> : (
-        <div className="tablewrap">
-          <table className="ctable">
-            <thead><tr><th>Quote</th><th>Client</th><th className="num">Total</th><th>Status</th><th>Booking</th><th /></tr></thead>
-            <tbody>
-              {rows.map((q) => (
-                <tr key={q.id}>
-                  <td className="c-stat c-first c-label"><Link className="rowlink mono" href={`/quotes/${q.id}`}>{q.label}</Link><div className="sub">{q.kind === "campaign" ? `Campaign · ${q.campaign_title ?? ""}` : fmtDate(q.created_at)}</div></td>
-                  <td className="c-main"><b className="c-name">{q.customer.name}</b><div className="sub">{q.items.map((i) => i.description).join(", ") || (q.attachment ? `Brochure: ${q.attachment.name}` : "")}</div></td>
-                  <td className="num c-end">{money(q.totals.total, business.currency)}</td>
-                  <td className="c-stat"><QuotePill q={q} />{q.status !== "accepted" && <div className="sub">{q.view_count ? `Opened ${q.view_count}× · ${fmtDateTime(q.views[q.views.length - 1])}` : q.wa_status ? <span className={`wa-tick ${q.wa_status}`}>{WA_LABEL[q.wa_status]}</span> : "Not opened yet"}</div>}</td>
-                  <td className="c-stat" data-label="Booking">
-                    {q.appointment_at ? <Link href={`/appointments?id=${q.appointment_id}`}>{fmtDay(uaeDate(q.appointment_at))}, {fmtTime(q.appointment_at)}</Link> : q.booking_status === "awaiting" ? <span className="muted">Not booked yet</span> : "—"}
-                  </td>
-                  <td className="c-acts">
-                    <div className="acts">
-                      {(q.status === "sent" || q.status === "viewed") && q.whatsapp_url && <a className="btn sm wa" href={q.whatsapp_url} target="_blank" rel="noreferrer">WhatsApp</a>}
-                      <Link className="btn sm" href={`/quotes/${q.id}`}>Open</Link>
-                      {q.status === "accepted" && q.booking_status !== "confirmed" && <Link className="btn sm primary" href={`/appointments?quote=${q.id}`}>Book</Link>}
-                      {q.service_record_id && <Pill status="done" label="Visit done" />}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!rows.length && <tr><td colSpan={6} className="empty">{quotes.length ? "No quotes with this status." : <>No quotes yet. <Link href="/quotes/new">Send your first quote</Link>.</>}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="tablewrap">
+        <table className="ctable">
+          <thead><tr><th>Quote</th><th>Client</th><th className="num">Total</th><th>Status</th><th>Booking</th><th /></tr></thead>
+          <tbody>
+            {rows.map((x) => (
+              <tr key={x.id}>
+                <td className="c-stat c-first c-label"><Link className="rowlink mono" href={`/quotes/${x.id}`}>{x.label}</Link><div className="sub">{x.kind === "campaign" ? `From campaign · ${x.campaign_title ?? ""}` : fmtDate(x.created_at)}</div></td>
+                <td className="c-main"><b className="c-name">{x.customer.name}</b><div className="sub">{x.reference || x.items.map((i) => i.description).join(", ") || (x.attachment ? `Brochure: ${x.attachment.name}` : "")}</div></td>
+                <td className="num c-end">{money(x.totals.total, business.currency)}</td>
+                <td className="c-stat"><QuotePill q={x} />{x.status !== "accepted" && <div className="sub">{x.view_count ? `Opened ${x.view_count}× · ${fmtDateTime(x.views[x.views.length - 1])}` : x.wa_status ? <span className={`wa-tick ${x.wa_status}`}>{WA_LABEL[x.wa_status]}</span> : "Not opened yet"}</div>}</td>
+                <td className="c-stat" data-label="Booking">
+                  {x.appointment_at ? <Link href={`/appointments?id=${x.appointment_id}`}>{fmtDay(uaeDate(x.appointment_at))}, {fmtTime(x.appointment_at)}</Link> : x.booking_status === "awaiting" ? <span className="muted">Not booked yet</span> : "—"}
+                </td>
+                <td className="c-acts">
+                  <div className="acts">
+                    {waiting(x) && x.whatsapp_url && <a className="btn sm wa" href={x.whatsapp_url} target="_blank" rel="noreferrer">WhatsApp</a>}
+                    <Link className="btn sm" href={`/quotes/${x.id}`}>Open</Link>
+                    {x.status === "accepted" && x.booking_status !== "confirmed" && <Link className="btn sm primary" href={`/appointments?quote=${x.id}`}>Book</Link>}
+                    {x.service_record_id && <Pill status="done" label="Visit done" />}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!rows.length && <tr><td colSpan={6} className="empty">{quotes.length ? "No quotes match." : <>No quotes yet. <Link href="/quotes/new">Send your first quote</Link>.</>}</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
 
-function Campaigns() {
+function CampaignList({ rows }: { rows: Campaign[] | null }) {
   const { business } = useSession();
-  const [rows, setRows] = useState<Campaign[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api.swr<Campaign[]>("/campaigns", setRows).catch((e) => setError(e.message)); }, []);
-  if (error) return <ErrorBox error={error} />;
   if (!rows) return <Loading />;
   if (!rows.length) return (
     <div className="panel empty" style={{ padding: 40 }}>
-      <p style={{ margin: "0 0 14px" }}>No campaigns yet. Make an offer like “Bridal package AED 1,500 until 30 Nov”, then put its link and QR code in your posts and ads.</p>
+      <p style={{ margin: "0 0 14px" }}>No campaigns yet. Make an offer like “Bridal package AED 1,500 until 30 Nov”, then post it to Facebook and Instagram or send it to a client group.</p>
       <Link className="btn primary" href="/quotes/campaigns/new">Create a campaign</Link>
     </div>
   );
@@ -120,8 +166,10 @@ function Campaigns() {
     <div className="camps">
       {rows.map((c) => (
         <article className="camp" key={c.id}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="camp-pic" src={`/api/public/c/${c.token}/image/portrait.jpg?v=${c.image_version}`} alt="" loading="lazy" />
+          <Link href={`/quotes/campaigns/${c.id}`} className="camp-picwrap">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="camp-pic" src={`/api/public/c/${c.token}/image/portrait.jpg?v=${c.image_version}`} alt="" loading="lazy" />
+          </Link>
           <div className="camp-top">
             <div>
               <Link className="camp-title" href={`/quotes/campaigns/${c.id}`}>{c.title}</Link>
@@ -136,9 +184,9 @@ function Campaigns() {
             <div><b>{c.booked}</b><span>Booked</span></div>
           </div>
           <div className="acts" style={{ justifyContent: "flex-start" }}>
-            <button className="btn sm" onClick={() => copyText(c.public_url)}>Copy link</button>
+            {c.active && !c.expired && <Link className="btn sm primary" href={`/quotes/campaigns/${c.id}?launch=social`}>Send it out</Link>}
             <Link className="btn sm" href={`/quotes/campaigns/${c.id}`}>Open</Link>
-            {c.active && !c.expired && <Link className="btn sm primary" href={`/quotes/campaigns/${c.id}#post`}>Post to social</Link>}
+            <button className="btn sm ghost" onClick={() => copyText(c.public_url)}>Copy link</button>
           </div>
         </article>
       ))}
