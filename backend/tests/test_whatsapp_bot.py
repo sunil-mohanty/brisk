@@ -86,7 +86,7 @@ def test_bad_signature_is_refused(client, wa):
 def test_send_quote_accept_pick_day_and_time_books_it(client, wa):
     h, q = _setup(client)
     st = client.get("/api/whatsapp/status", headers=h).json()
-    assert st == {"automatic": True, "quotes": True, "webhook": True, "business_number": "+971500000000"}
+    assert st == {"automatic": True, "quotes": True, "campaigns": False, "webhook": True, "business_number": "+971500000000"}
 
     r = client.post(f"/api/quotes/{q['id']}/whatsapp", headers=h).json()
     assert r["status"] == "sent"
@@ -191,3 +191,71 @@ def test_bulk_send(client, wa):
     r = client.post("/api/quotes/whatsapp-bulk", json={"quote_ids": [q["id"], q2["id"]]}, headers=h).json()
     assert r == {"sent": 2, "failed": 0, "manual": 0}
     assert {p["to"] for p in wa} == {CLIENT, "971509998877"}
+
+
+def test_campaign_sent_on_whatsapp_and_booked_in_chat(client, wa, monkeypatch):
+    monkeypatch.setattr(get_settings(), "whatsapp_campaign_template", "campaign_offer")
+    h = signup(client)
+    client.patch("/api/business", json={"open_time": "10:00", "close_time": "20:00", "closed_days": ""}, headers=h)
+    client.post("/api/team", json={"name": "Maya"}, headers=h)
+    client.put("/api/customers/categories", json={"categories": [{"name": "VIP"}]}, headers=h)
+    sara = client.post("/api/customers", json={"name": "Sara Ali", "phone": "055 111 2233"}, headers=h).json()
+    noor = client.post("/api/customers", json={"name": "Noor", "phone": "050 999 8877"}, headers=h).json()
+    nop = client.post("/api/customers", json={"name": "No Phone"}, headers=h).json()
+    client.post("/api/customers", json={"name": "Other", "phone": "050 444 5566"}, headers=h)
+    for x in (sara, noor, nop):
+        assert client.put(f"/api/customers/{x['id']}/tags", json={"tags": ["VIP"]}, headers=h).status_code == 200
+    assert client.get("/api/whatsapp/status", headers=h).json()["campaigns"] is True
+    c = client.post("/api/campaigns", json={"title": "Facial & Foot Reflexology", "headline": "Glow from Head to Toe!",
+                                            "items": [{"description": "Classic facial", "unit_price": 250}]}, headers=h).json()
+
+    r = client.post(f"/api/campaigns/{c['id']}/whatsapp-send", json={"tag": "VIP"}, headers=h).json()
+    assert r == {"queued": 2, "already_sent": 0, "opted_out": 0, "no_mobile": 1}
+    tpl = [p for p in wa if p.get("type") == "template"]
+    assert {p["to"] for p in tpl} == {CLIENT, "971509998877"}
+    t = next(p for p in tpl if p["to"] == CLIENT)["template"]
+    assert t["name"] == "campaign_offer"
+    assert t["components"][0]["parameters"][0]["image"]["link"].endswith(".jpg?v=" + c["image_version"]) or "/image/square.jpg" in t["components"][0]["parameters"][0]["image"]["link"]
+    body = [x["text"] for x in t["components"][1]["parameters"]]
+    assert body[:4] == ["Sara", "Glow from Head to Toe!", "Layla Beauty Lounge", "Facial & Foot Reflexology"]
+    accept = t["components"][2]["parameters"][0]["payload"]
+    assert accept == f"cacc:{c['token']}:{sara['id']}"
+    # Sending again skips those already sent
+    assert client.post(f"/api/campaigns/{c['id']}/whatsapp-send", json={"tag": "VIP"}, headers=h).json()["already_sent"] == 2
+    aud = client.get(f"/api/campaigns/{c['id']}/audience?tag=VIP", headers=h).json()
+    row = next(x for x in aud["rows"] if x["customer_id"] == sara["id"])
+    assert row["wa_status"] == "sent" and row["sent_at"] and aud["sent"] == 2
+
+    # Sara taps Accept & book → her own accepted quote and a list of days, all inside WhatsApp
+    _hook(client, [_button(accept)])
+    days = _rows(wa[-1])
+    assert "is yours" in wa[-1]["interactive"]["body"]["text"] and days[0].startswith("day:")
+    _hook(client, [_list(days[0])])
+    slot = next(x for x in _rows(wa[-1]) if x.startswith("slot:"))
+    _hook(client, [_list(slot)])
+    quotes = client.get("/api/quotes?kind=campaign", headers=h).json()
+    assert len(quotes) == 1 and quotes[0]["customer"]["id"] == sara["id"]
+    assert quotes[0]["status"] == "accepted" and quotes[0]["booking_status"] == "confirmed"
+    # Tapping Accept again doesn't make a second quote
+    _hook(client, [_button(accept)])
+    assert len(client.get("/api/quotes?kind=campaign", headers=h).json()) == 1 and "booked" in wa[-1]["text"]["body"]
+    aud = client.get(f"/api/campaigns/{c['id']}/audience?tag=VIP", headers=h).json()
+    assert next(x for x in aud["rows"] if x["customer_id"] == sara["id"])["accepted"] is True
+
+    # Noor: Not interested, then Stop offers → skipped next time; START brings her back
+    noor_ref = next(p for p in tpl if p["to"] == "971509998877")["template"]["components"][4]["parameters"][0]["payload"]
+    assert noor_ref.startswith("cstop:")
+    msg = _button(noor_ref)
+    msg["from"] = "971509998877"
+    _hook(client, [msg])
+    assert "won't get offers" in wa[-1]["text"]["body"]
+    r = client.post(f"/api/campaigns/{c['id']}/whatsapp-send", json={"tag": "VIP", "resend": True}, headers=h).json()
+    assert r["opted_out"] == 1 and r["queued"] == 1
+    start = _text("START")
+    start["from"] = "971509998877"
+    _hook(client, [start])
+    assert "Welcome back" in wa[-1]["text"]["body"]
+
+    # Needs the template, and a published campaign
+    monkeypatch.setattr(get_settings(), "whatsapp_campaign_template", None)
+    assert client.post(f"/api/campaigns/{c['id']}/whatsapp-send", json={}, headers=h).status_code == 409

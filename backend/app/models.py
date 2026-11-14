@@ -168,6 +168,8 @@ class Customer(Base):
     # The owner's own labels for segments, e.g. ["Bridal", "VIP"]
     tags: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Tapped "Stop offers" on a WhatsApp campaign: no more campaigns to this client (quotes and bookings still go)
+    wa_opt_out: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     leads: Mapped[list[Lead]] = relationship(back_populates="customer")
     quotes: Mapped[list[Quote]] = relationship(back_populates="customer")
@@ -577,8 +579,9 @@ class OutboundMessage(Base):
     to_phone: Mapped[str | None] = mapped_column(String(40))
     to_name: Mapped[str | None] = mapped_column(String(160))
     quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id", ondelete="CASCADE"))
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
     wa_message_id: Mapped[str | None] = mapped_column(String(120), index=True)  # Meta's id, for delivered/read updates
-    kind: Mapped[str] = mapped_column(String(30))  # booking_confirmed | quote | bot
+    kind: Mapped[str] = mapped_column(String(30))  # booking_confirmed | quote | campaign | bot
     body: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), index=True)  # sent | failed | manual | done
     error: Mapped[str | None] = mapped_column(String(300))

@@ -6,6 +6,7 @@ import { Lightbox } from "@/components/QuotePicture";
 import { useSession } from "@/components/session";
 import { money } from "@/lib/format";
 import type { Campaign } from "@/lib/types";
+import { useWhatsApp } from "@/lib/whatsapp";
 
 const initials = (s: string) => s.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
@@ -29,6 +30,9 @@ export function CampaignPreview({ c, as = "post", editHref, onEdit, compact }: {
     </button>
   );
   const msg = c.wa_message.replace("{name}", "Sara").split(/(https?:\/\/\S+)/);
+  const wa = useWhatsApp();
+  const api = !!wa?.campaigns; // sent from the WhatsApp Business number, with booking buttons
+  const ends = c.valid_until ? `ends ${new Date(c.valid_until + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "limited time";
 
   return (
     <div className={`cprev as-${as}${compact ? " compact" : ""}`}>
@@ -53,6 +57,24 @@ export function CampaignPreview({ c, as = "post", editHref, onEdit, compact }: {
         <div className="cprev-wa">
           <div className="cprev-wa-bar"><span className="cprev-av">{initials(name)}</span><b>{name}</b></div>
           <div className="cprev-wa-chat">
+            {api ? (
+              <div className="cprev-tpl">
+                <div className="cprev-bubble in">
+                  <button type="button" className="cprev-img sq" onClick={() => setBig(true)} aria-label="See the picture full size">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/public/c/${c.token}/image/square.jpg?v=${c.image_version}`} alt={`${c.title} at ${name}`} />
+                  </button>
+                  <p>Hi Sara! {c.headline || "Something special for you."}{"\n\n"}{name} has a special offer for you: {c.title} for {money(c.totals.total, business.currency)} ({ends}).{"\n\n"}Tap Accept &amp; book to choose your time right here in WhatsApp.</p>
+                  <time>now</time>
+                </div>
+                <div className="cprev-btns">
+                  <span>Accept &amp; book</span><span>Not interested</span><span>Stop offers</span>
+                </div>
+                <div className="cprev-bubble out"><p>Accept &amp; book</p><time>now ✓✓</time></div>
+                <div className="cprev-bubble in"><p>Wonderful! &quot;{c.title}&quot; at {name} is yours ✅ Now choose a day for your visit.</p>
+                  <span className="cprev-list">☰ Choose a day</span></div>
+              </div>
+            ) : (
             <div className="cprev-bubble">
               <div className="cprev-wa-link">
                 {picture}
@@ -61,8 +83,11 @@ export function CampaignPreview({ c, as = "post", editHref, onEdit, compact }: {
               <p>{msg.map((part, i) => /^https?:/.test(part) ? <u key={i}>{part}</u> : <span key={i}>{part}</span>)}</p>
               <time>now ✓✓</time>
             </div>
+            )}
           </div>
-          <p className="small muted cprev-note">Each client sees their own first name. The link opens the offer, where they accept and book.</p>
+          <p className="small muted cprev-note">{api
+            ? "Each client sees their own first name. They tap Accept & book, pick a day and a time, and get the confirmation, all inside WhatsApp."
+            : "Each client sees their own first name. The link opens the offer, where they accept and book."}</p>
         </div>
       )}
 

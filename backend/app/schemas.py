@@ -188,6 +188,10 @@ class AudienceRow(BaseModel):
     tags: list[str]
     whatsapp_url: str | None  # None when the client has no usable mobile number
     sent_at: datetime | None
+    wa_status: str | None = None  # sent | delivered | read | failed (sent by the WhatsApp API)
+    wa_error: str | None = None
+    opted_out: bool = False  # tapped "Stop offers"
+    accepted: bool = False  # accepted this campaign
 
 
 class AudienceOut(BaseModel):
@@ -196,6 +200,19 @@ class AudienceOut(BaseModel):
     tag: str | None
     rows: list[AudienceRow]
     sent: int
+
+
+class CampaignWaSendIn(BaseModel):
+    tag: str | None = Field(default=None, max_length=40)  # a client category; empty = all clients
+    customer_ids: list[int] | None = Field(default=None, max_length=2000)  # or just these clients
+    resend: bool = False  # also clients it was already sent to
+
+
+class CampaignWaSendOut(BaseModel):
+    queued: int  # going out now, in the background
+    already_sent: int
+    opted_out: int
+    no_mobile: int
 
 
 class CustomerSummary(CustomerOut):
@@ -1192,6 +1209,7 @@ class CampaignAcceptOut(BaseModel):
 class WhatsAppStatus(BaseModel):
     automatic: bool  # booking confirmations go out by themselves
     quotes: bool  # quotes go out with Accept / Decline buttons
+    campaigns: bool = False  # campaigns go out to many clients with Accept & book buttons
     webhook: bool  # replies from clients are handled (verify token set)
     business_number: str | None = None
 

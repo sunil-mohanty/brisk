@@ -30,6 +30,10 @@ def quotes_automatic() -> bool:
     return automatic() and bool(get_settings().whatsapp_quote_template)
 
 
+def campaigns_automatic() -> bool:
+    return automatic() and bool(get_settings().whatsapp_campaign_template)
+
+
 def _post(payload: dict) -> tuple[bool, str | None, str | None]:
     """Returns (ok, error, Meta message id)."""
     s = get_settings()
@@ -125,6 +129,33 @@ def send_quote(db: Session, *, business_id: int, quote_id: int, token: str, phon
             },
         }
     return _record(db, payload, business_id=business_id, quote_id=quote_id, to_phone=phone, to_name=name, kind="quote", body=body)
+
+
+def send_campaign(db: Session, *, business_id: int, campaign_id: int, campaign_token: str, customer_id: int,
+                  phone: str | None, name: str | None, image_url: str, body: str, params: list[str]) -> OutboundMessage:
+    """The campaign template: the campaign picture as the header, 6 body variables and three quick replies
+    (Accept & book, Not interested, Stop offers). Each carries the campaign and the client, so a tap books in chat."""
+    s = get_settings()
+    to = normalize_phone(phone)
+    payload = None
+    if to and campaigns_automatic():
+        ref = f"{campaign_token}:{customer_id}"
+        payload = {
+            "messaging_product": "whatsapp", "to": to, "type": "template",
+            "template": {
+                "name": s.whatsapp_campaign_template,
+                "language": {"code": s.whatsapp_template_lang},
+                "components": [
+                    {"type": "header", "parameters": [{"type": "image", "image": {"link": image_url}}]},
+                    {"type": "body", "parameters": _text_params(params)},
+                    {"type": "button", "sub_type": "quick_reply", "index": "0", "parameters": [{"type": "payload", "payload": f"cacc:{ref}"}]},
+                    {"type": "button", "sub_type": "quick_reply", "index": "1", "parameters": [{"type": "payload", "payload": f"cno:{ref}"}]},
+                    {"type": "button", "sub_type": "quick_reply", "index": "2", "parameters": [{"type": "payload", "payload": f"cstop:{ref}"}]},
+                ],
+            },
+        }
+    return _record(db, payload, business_id=business_id, campaign_id=campaign_id, to_phone=phone, to_name=name,
+                   kind="campaign", body=body)
 
 
 # ---------- replies inside a conversation the client started (no template needed) ----------

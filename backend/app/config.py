@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # quick-reply buttons "Accept" and "Decline", and a URL button ending in the quote token.
     whatsapp_quote_template: str | None = None
     # Webhook: Meta checks VERIFY_TOKEN once when you subscribe, and signs every call with the app secret.
+    # Campaigns sent to many clients: a Marketing template with the campaign picture and Accept & book /
+    # Not interested / Stop offers buttons (see DEPLOY_RAILWAY.md). Clients book inside WhatsApp.
+    whatsapp_campaign_template: str | None = None
     whatsapp_verify_token: str | None = None
     whatsapp_app_secret: str | None = None
     # The business number in international format without "+", e.g. 971501234567. Used for "Accept on WhatsApp" links.

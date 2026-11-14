@@ -54,7 +54,11 @@ export interface Customer {
 
 export interface TagCount { name: string; count: number }
 export interface Categories { categories: TagCount[]; uncategorised: number; max: number }
-export interface AudienceRow { customer_id: number; name: string; phone: string | null; tags: string[]; whatsapp_url: string | null; sent_at: string | null }
+export interface AudienceRow {
+  customer_id: number; name: string; phone: string | null; tags: string[]; whatsapp_url: string | null; sent_at: string | null;
+  wa_status: "sent" | "delivered" | "read" | "failed" | "manual" | null; wa_error: string | null; opted_out: boolean; accepted: boolean;
+}
+export interface CampaignWaSend { queued: number; already_sent: number; opted_out: number; no_mobile: number }
 export interface Audience { campaign_id: number; title: string; tag: string | null; rows: AudienceRow[]; sent: number }
 
 export interface CustomerSummary extends Customer {
@@ -492,7 +496,7 @@ export interface AdminInvite {
 }
 export interface MessageLink { whatsapp_url: string | null; message: string }
 
-export interface WhatsAppStatus { automatic: boolean; quotes: boolean; webhook: boolean; business_number: string | null }
+export interface WhatsAppStatus { automatic: boolean; quotes: boolean; campaigns?: boolean; webhook: boolean; business_number: string | null }
 export interface WhatsAppSend { status: "sent" | "failed" | "manual"; error: string | null; whatsapp_url: string | null }
 export interface BulkSend { sent: number; failed: number; manual: number }
 

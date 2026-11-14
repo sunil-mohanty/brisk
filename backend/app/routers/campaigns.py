@@ -2,12 +2,13 @@
 gets their own accepted quote (and appointment, if they book a time)."""
 
 import io
+import logging
 import random
 import re
 from datetime import datetime
 
 import segno
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -17,11 +18,12 @@ from ..config import get_settings
 from ..db import get_db
 from .. import ai_art, creative, designer, social, whatsapp
 from ..logic import get_owned, item_out
-from ..models import Campaign, CampaignArt, CampaignItem, CampaignSend, Customer, Quote, User, utcnow
+from ..models import Campaign, CampaignArt, CampaignItem, CampaignSend, Customer, OutboundMessage, Quote, User, utcnow
 from ..security import current_user
-from ..utils import money, new_token, quote_totals, whatsapp_link
+from ..utils import money, new_token, normalize_phone, quote_totals, whatsapp_link
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+log = logging.getLogger("salon.campaigns")
 
 
 def campaign_url(c: Campaign) -> str:
@@ -216,14 +218,104 @@ def audience(cid: int, tag: str | None = Query(default=None, max_length=40), use
 
     c = _get(db, cid, user.business_id)
     sent = dict(db.execute(select(CampaignSend.customer_id, CampaignSend.sent_at).where(CampaignSend.campaign_id == c.id)).all())
+    # What the WhatsApp API says about each message (latest per number), and who accepted
+    wa: dict[str, OutboundMessage] = {}
+    for m in db.scalars(select(OutboundMessage).where(OutboundMessage.campaign_id == c.id).order_by(OutboundMessage.id)):
+        wa[normalize_phone(m.to_phone) or ""] = m
+    took = set(db.scalars(select(Quote.customer_id).where(Quote.campaign_id == c.id)).all())
     rows = []
     for cu in db.scalars(select(Customer).where(Customer.business_id == user.business_id).order_by(Customer.name)):
         if tag and not has_tag(cu, tag):
             continue
         first = (cu.name or "").split()[0] if cu.name else ""
+        m = wa.get(normalize_phone(cu.phone) or "-")
         rows.append(s.AudienceRow(customer_id=cu.id, name=cu.name, phone=cu.phone, tags=cu.tags or [],
-                                  whatsapp_url=whatsapp_link(cu.phone, client_message(c, first)), sent_at=sent.get(cu.id)))
+                                  whatsapp_url=whatsapp_link(cu.phone, client_message(c, first)), sent_at=sent.get(cu.id),
+                                  wa_status=m.status if m else None, wa_error=m.error if m else None,
+                                  opted_out=cu.wa_opt_out, accepted=cu.id in took))
     return s.AudienceOut(campaign_id=c.id, title=c.title, tag=tag, rows=rows, sent=sum(1 for r in rows if r.sent_at))
+
+
+def campaign_params(c: Campaign, first_name: str) -> list[str]:
+    """The 6 variables of the campaign template:
+    Hi {{1}}! {{2}} / {{3}} has a special offer for you: {{4}} for {{5}} ({{6}}). Tap Accept & book ..."""
+    t = totals(c)
+    ends = f"ends {c.valid_until:%d %b}".replace(" 0", " ") if c.valid_until else "limited time"
+    return [first_name or "there", c.headline or "Something special for you.", c.business.name, c.title,
+            f"{c.business.currency} {t.total:,.2f}", ends]
+
+
+def campaign_image_url(c: Campaign) -> str:
+    """The square picture (WhatsApp shows it above the message). Public, so Meta can fetch it."""
+    return f"{get_settings().app_url.rstrip('/')}/api/public/c/{c.token}/image/square.jpg?v={creative.version(c)}"
+
+
+def send_campaign_to(db: Session, c: Campaign, cu: Customer) -> OutboundMessage:
+    first = (cu.name or "").split()[0] if cu.name else ""
+    p = campaign_params(c, first)
+    body = (f"Hi {p[0]}! {p[1]}\n\n{p[2]} has a special offer for you: {p[3]} for {p[4]} ({p[5]}).\n\n"
+            "Tap Accept & book to choose your time right here in WhatsApp.")
+    m = whatsapp.send_campaign(db, business_id=c.business_id, campaign_id=c.id, campaign_token=c.token, customer_id=cu.id,
+                               phone=cu.phone, name=cu.name, image_url=campaign_image_url(c), body=body, params=p)
+    if m.status in ("sent", "delivered", "read") and not db.scalar(
+            select(CampaignSend.id).where(CampaignSend.campaign_id == c.id, CampaignSend.customer_id == cu.id)):
+        db.add(CampaignSend(campaign_id=c.id, customer_id=cu.id))
+    return m
+
+
+def _send_batch(bind, campaign_id: int, customer_ids: list[int]) -> None:
+    """Runs after the response, in its own session, so hundreds of clients don't hold up the page."""
+    with Session(bind=bind, expire_on_commit=False) as db:
+        c = db.get(Campaign, campaign_id)
+        if not c:
+            return
+        n = 0
+        for cid in customer_ids:
+            cu = db.get(Customer, cid)
+            if not cu or cu.business_id != c.business_id or cu.wa_opt_out:
+                continue
+            try:
+                if send_campaign_to(db, c, cu).status == "sent":
+                    n += 1
+                db.commit()
+            except Exception:  # one bad number mustn't stop the rest
+                db.rollback()
+                log.exception("Campaign %s to client %s failed", campaign_id, cid)
+        if n:
+            record(db, c.business_id, "campaign_sent", f"{c.title} · {n} on WhatsApp")
+            db.commit()
+
+
+@router.post("/{cid}/whatsapp-send", response_model=s.CampaignWaSendOut)
+def whatsapp_send(cid: int, body: s.CampaignWaSendIn, background: BackgroundTasks, user: User = Depends(current_user),
+                  db: Session = Depends(get_db)):
+    """Sends the campaign from the WhatsApp Business number to a category (or all clients), with booking buttons."""
+    from .customers import has_tag
+
+    c = _get(db, cid, user.business_id)
+    if not whatsapp.campaigns_automatic():
+        raise HTTPException(409, "WhatsApp campaigns aren't set up yet. Send them one by one from your phone for now.")
+    if c.draft or not c.active or campaign_expired(c):
+        raise HTTPException(409, "Publish the campaign (or resume it) before sending it.")
+    done = set(db.scalars(select(CampaignSend.customer_id).where(CampaignSend.campaign_id == c.id)).all())
+    q = select(Customer).where(Customer.business_id == user.business_id).order_by(Customer.name)
+    if body.customer_ids:
+        q = q.where(Customer.id.in_(body.customer_ids))
+    ids, already, opted, nomobile = [], 0, 0, 0
+    for cu in db.scalars(q):
+        if body.tag and not has_tag(cu, body.tag):
+            continue
+        if not normalize_phone(cu.phone):
+            nomobile += 1
+        elif cu.wa_opt_out:
+            opted += 1
+        elif cu.id in done and not body.resend:
+            already += 1
+        else:
+            ids.append(cu.id)
+    if ids:
+        background.add_task(_send_batch, db.get_bind(), c.id, ids)
+    return s.CampaignWaSendOut(queued=len(ids), already_sent=already, opted_out=opted, no_mobile=nomobile)
 
 
 @router.post("/{cid}/audience/{customer_id}/sent", status_code=204)

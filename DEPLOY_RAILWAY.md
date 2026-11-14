@@ -99,7 +99,7 @@ Push the new code. The `api` service runs database migrations on start, so the l
 and the link-page switch. Existing data is kept, and quotes already accepted are marked
 "booked" (if they have an appointment) or "awaiting booking".
 
-Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) `0009_staff` (staff profiles, logins and roles, attendance, leave and commission) and `0010_campaigns_addon` (Campaigns as an add-on you switch on per business in Admin; existing businesses keep it on), `0011_offer_templates` (campaign headlines, and the templates owners save) and `0012_campaign_draft` (campaigns saved as a draft while you preview them). New sign-ups get Campaigns switched on unless you set `CAMPAIGNS_ON_SIGNUP=false` on the api service. This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
+Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) `0009_staff` (staff profiles, logins and roles, attendance, leave and commission) and `0010_campaigns_addon` (Campaigns as an add-on you switch on per business in Admin; existing businesses keep it on), `0011_offer_templates` (campaign headlines, and the templates owners save), `0012_campaign_draft` (campaigns saved as a draft while you preview them) and `0013_wa_campaigns` (campaigns sent from the WhatsApp Business number, and "Stop offers"). New sign-ups get Campaigns switched on unless you set `CAMPAIGNS_ON_SIGNUP=false` on the api service. This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
 `pillow`, `cryptography` and `imageio-ffmpeg` to the api, installed automatically on deploy.
 The WhatsApp part (`0003_whatsapp`) adds (a log of incoming WhatsApp messages and
 delivery ticks). Nothing changes until you add the WhatsApp variables (see below).
@@ -241,6 +241,10 @@ fal.ai: sign up at fal.ai, add a few dollars of credit, create a key. Prices cha
 - The client taps **Accept** → the quote becomes *Accepted* and the chat replies with a list of free days, then free times, plus **Book later**.
 - Picking a free time books it → *Accepted · Booking confirmed*, it appears in Appointments, and the confirmation arrives in the chat.
 - **Book later** (or the time was just taken and they give up) → *Accepted · Awaiting booking*; it shows on Today for you to arrange.
+- **Campaigns → WhatsApp to clients → Send to N clients** sends the campaign picture to a category (or everyone) with
+  **Accept & book**, **Not interested** and **Stop offers**. Accept & book → pick a day → pick a time → booked, all in the chat.
+  Clients who tap Stop offers (or type STOP) get no more campaigns; START turns them back on. The list shows Sent /
+  Delivered / Read / Accepted per client.
 - Campaigns get an **Accept on WhatsApp** link (offer page, caption, ads). The client presses send on a pre-filled message, the bot creates their accepted quote and offers times.
 - The quote shows *Sent / Delivered / Read on WhatsApp*. Typing "accept", "yes" or "book" in the chat also works.
 
@@ -269,7 +273,7 @@ The token on the API Setup page expires in 24 hours. Make a permanent one:
 3. **Generate new token** → your app → expiry **Never** → permissions `whatsapp_business_messaging` and
    `whatsapp_business_management` → copy it → `WHATSAPP_TOKEN`.
 
-### Step 3: two message templates
+### Step 3: three message templates
 
 **WhatsApp Manager → Account tools → Message templates → Create template.** Language **English** (`en`).
 Names must match exactly.
@@ -292,7 +296,20 @@ Buttons, **in this order** (the order matters):
 3. **Visit website** — text `View quote`, URL type **Dynamic**, URL `https://<your web domain>/q/{{1}}`
    (sample: `https://brisk-web-production.up.railway.app/q/AB12CD34EF`)
 
-Submit both. Approval usually takes minutes, sometimes a day.
+**3. `campaign_offer`** — Category **Marketing**. This is the campaign sent to many clients at once; they book inside WhatsApp.
+- **Header:** **Image** (upload any salon picture as the sample; each send uses the campaign's own picture).
+- **Body:**
+```
+Hi {{1}}! {{2}}
+
+{{3}} has a special offer for you: {{4}} for {{5}} ({{6}}).
+
+Tap Accept & book to choose your time right here in WhatsApp.
+```
+Sample values: `Sara`, `Glow from Head to Toe!`, `Layla Beauty Lounge`, `Facial & Foot Reflexology`, `AED 367.50`, `ends 14 Dec`.
+- **Buttons**, **in this order**: **Quick reply** `Accept & book`, **Quick reply** `Not interested`, **Quick reply** `Stop offers`.
+
+Submit all three. Approval usually takes minutes, sometimes a day.
 
 ### Step 4: variables on the Railway `api` service
 
@@ -304,6 +321,7 @@ WHATSAPP_APP_SECRET=<app secret>
 WHATSAPP_VERIFY_TOKEN=<any long random text you make up, e.g. tressa-7f3k29xq81>
 WHATSAPP_TEMPLATE=booking_confirmed
 WHATSAPP_QUOTE_TEMPLATE=quote_offer
+WHATSAPP_CAMPAIGN_TEMPLATE=campaign_offer
 WHATSAPP_TEMPLATE_LANG=en
 ```
 Deploy the api. Settings → **WhatsApp** in the app should show three **On**.

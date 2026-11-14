@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { toast } from "@/components/ui";
+import { useCallback, useEffect, useState } from "react";
+import { ErrorBox, Pill, toast } from "@/components/ui";
 import { api } from "@/lib/api";
-import type { Audience, Categories } from "@/lib/types";
+import type { Audience, CampaignWaSend, Categories } from "@/lib/types";
+import { useWhatsApp } from "@/lib/whatsapp";
 
 /** The owner's categories (at most 4) with client counts, shared by the Clients page, import and the campaign send panel. */
 export function useCategories(): [Categories | null, (c: Categories) => void] {
@@ -73,7 +74,97 @@ export function CategoryManager({ cats, onSaved, onClose }: { cats: Categories; 
 }
 
 /** On a campaign: pick a segment and send the offer to each client from your own WhatsApp, one tap each. */
-export function SendToClients({ campaignId, initialTag, onSent }: { campaignId: number; initialTag?: string | null; onSent?: (n: number) => void }) {
+export function SendToClients(props: { campaignId: number; initialTag?: string | null; onSent?: (n: number) => void }) {
+  const wa = useWhatsApp();
+  if (!wa) return <section className="panel"><div className="empty">Loading…</div></section>;
+  return wa.campaigns ? <SendWithApi {...props} /> : <SendByHand {...props} />;
+}
+
+const WA_STATE: Record<string, [string, string]> = {
+  sent: ["Sent", "sent"], delivered: ["Delivered", "sent"], read: ["Read", "accepted"], failed: ["Didn't arrive", "rejected"],
+};
+
+/** With the WhatsApp Business API: one tap sends the campaign to a whole category, each with Accept & book buttons.
+ *  Clients book inside WhatsApp; the list shows sent / delivered / read / accepted for each client. */
+function SendWithApi({ campaignId, initialTag, onSent }: { campaignId: number; initialTag?: string | null; onSent?: (n: number) => void }) {
+  const [cats] = useCategories();
+  const [tag, setTag] = useState<string>(initialTag ?? "");
+  const [aud, setAud] = useState<Audience | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => api.get<Audience>(`/campaigns/${campaignId}/audience${tag ? `?tag=${encodeURIComponent(tag)}` : ""}`).then(setAud).catch((e) => toast(e.message)), [campaignId, tag]);
+  useEffect(() => { setAud(null); load(); }, [load]);
+  useEffect(() => { if (initialTag) document.getElementById("send")?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [initialTag]);
+
+  const rows = aud?.rows ?? [];
+  const reachable = rows.filter((r) => r.whatsapp_url && !r.opted_out);
+  const todo = reachable.filter((r) => !r.sent_at);
+  const accepted = rows.filter((r) => r.accepted).length;
+
+  async function send(body: { tag?: string | null; customer_ids?: number[]; resend?: boolean }, count: number) {
+    if (count > 1 && !window.confirm(`Send this campaign to ${count} clients on WhatsApp now? Each gets the picture with Accept & book.`)) return;
+    setBusy(true); setError(null);
+    try {
+      const r = await api.post<CampaignWaSend>(`/campaigns/${campaignId}/whatsapp-send`, body);
+      toast(r.queued ? `Sending to ${r.queued} client${r.queued === 1 ? "" : "s"} on WhatsApp…` : "Nobody new to send to.");
+      onSent?.(r.queued);
+      // The messages go out in the background: refresh the ticks a few times
+      [2500, 7000, 15000].forEach((ms) => setTimeout(load, ms));
+    } catch (e) { setError((e as Error).message); }
+    setBusy(false);
+  }
+
+  return (
+    <section className="panel sendlist">
+      <h2>Send on WhatsApp <span className="muted small">from your WhatsApp Business number</span></h2>
+      <ErrorBox error={error} />
+      <div className="wa-api-how">
+        <span className="wa-api-step"><b>1</b>Clients get the picture with <i>Accept &amp; book</i></span>
+        <span className="wa-api-step"><b>2</b>They pick a day and a time in the chat</span>
+        <span className="wa-api-step"><b>3</b>Booked: it lands in your diary</span>
+      </div>
+      <div className="seg-pick">
+        <label>Who
+          <select value={tag} onChange={(e) => setTag(e.target.value)}>
+            <option value="">All clients</option>
+            {(cats?.categories ?? []).map((t) => <option key={t.name} value={t.name}>{t.name} ({t.count})</option>)}
+          </select>
+        </label>
+        <button className="btn wa" disabled={busy || !aud || !todo.length} onClick={() => send({ tag: tag || null }, todo.length)}>
+          {busy ? "Sending…" : !aud ? "Loading…" : todo.length ? `Send to ${todo.length} client${todo.length === 1 ? "" : "s"}` : "Sent to everyone"}
+        </button>
+        {aud && <span className="small muted">{reachable.length - todo.length} sent · {accepted} accepted{rows.some((r) => r.opted_out) ? ` · ${rows.filter((r) => r.opted_out).length} stopped offers` : ""}</span>}
+      </div>
+      {!aud ? <div className="empty">Loading clients…</div> : rows.length === 0 ? (
+        <div className="empty">{tag ? <>No clients in “{tag}” yet. Add clients to it on the <a href="/customers">Clients</a> page.</> : <>No clients yet. <a href="/customers/import">Import your clients</a> first.</>}</div>
+      ) : (
+        <div className="list">
+          {rows.map((r) => {
+            const st = r.wa_status ? WA_STATE[r.wa_status] : null;
+            return (
+              <div className={`row${r.sent_at ? " is-sent" : ""}`} key={r.customer_id}>
+                <div className="l"><b>{r.name}</b><div className="mono">{r.phone || "no mobile number"}</div></div>
+                <div className="acts" style={{ flexWrap: "nowrap" }}>
+                  {r.accepted ? <Pill status="accepted" label="Accepted" />
+                    : r.opted_out ? <Pill status="neutral" label="Stopped offers" />
+                    : st ? <span title={r.wa_error ?? undefined}><Pill status={st[1]} label={st[0]} /></span> : null}
+                  {!r.whatsapp_url ? <span className="small muted">No mobile</span>
+                    : !r.opted_out && !r.accepted && (!r.sent_at || r.wa_status === "failed") && (
+                      <button className="btn sm wa" disabled={busy} onClick={() => send({ customer_ids: [r.customer_id], resend: true }, 1)}>{r.wa_status === "failed" ? "Try again" : "Send"}</button>
+                    )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="note" style={{ margin: "10px 0 0" }}>Clients who tap <b>Stop offers</b> won&apos;t get campaigns again (quotes and bookings still reach them). Anyone already sent is skipped, so you can press Send again for new clients.</p>
+    </section>
+  );
+}
+
+/** Without the WhatsApp Business API: the owner sends from their own phone, one tap per client. */
+function SendByHand({ campaignId, initialTag, onSent }: { campaignId: number; initialTag?: string | null; onSent?: (n: number) => void }) {
   const [cats] = useCategories();
   const tags = cats?.categories;
   const [tag, setTag] = useState<string>(initialTag ?? "");
@@ -102,7 +193,7 @@ export function SendToClients({ campaignId, initialTag, onSent }: { campaignId: 
   const next = left[0];
 
   return (
-    <section className="panel sendlist" id="send">
+    <section className="panel sendlist">
       <h2>Send to your clients on WhatsApp <span className="muted small">from your own number</span></h2>
       <div className="seg-pick">
         <label>Who

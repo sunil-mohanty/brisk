@@ -55,7 +55,7 @@ async def receive(req: Request, db: Session = Depends(get_db)):
 def status(user: User = Depends(current_user)):
     st = get_settings()
     return s.WhatsAppStatus(
-        automatic=whatsapp.automatic(), quotes=whatsapp.quotes_automatic(),
+        automatic=whatsapp.automatic(), quotes=whatsapp.quotes_automatic(), campaigns=whatsapp.campaigns_automatic(),
         webhook=whatsapp.automatic() and bool(st.whatsapp_verify_token),
         business_number=("+" + st.whatsapp_business_number.lstrip("+")) if st.whatsapp_business_number else None,
     )

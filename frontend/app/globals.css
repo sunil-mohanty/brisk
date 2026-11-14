@@ -1920,3 +1920,17 @@ dialog.sheet.wide[open] { display: flex; flex-direction: column; }
   .cmade, .launch-split, .launch-split.three { grid-template-columns: 1fr; }
   .cmade .cprev { max-width: 380px; }
 }
+
+/* WhatsApp campaign sent from the Business number (template with buttons) */
+.cprev-tpl { display: flex; flex-direction: column; gap: 6px; }
+.cprev-bubble.in { margin-left: 0; margin-right: auto; background: #fff; border-radius: 4px 12px 12px 12px; }
+.cprev-bubble.out { margin-left: auto; margin-right: 0; max-width: 60%; }
+.cprev-img.sq img { aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.cprev-btns { display: grid; gap: 4px; max-width: 92%; }
+.cprev-btns span { background: #fff; border-radius: 10px; text-align: center; padding: 8px; font-size: 13.5px; font-weight: 600; color: #1a8fbf; box-shadow: 0 1px 1px rgba(0, 0, 0, .08); }
+.cprev-list { display: block; border-top: 1px solid #eee; margin-top: 6px; padding: 8px 6px 4px; text-align: center; font-size: 13.5px; font-weight: 600; color: #1a8fbf; }
+.wa-api-how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 14px; }
+.wa-api-step { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 13px; }
+.wa-api-step b { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 12px; }
+.seg-pick .btn.wa { align-self: flex-end; }
+@media (max-width: 760px) { .wa-api-how { grid-template-columns: 1fr; } }

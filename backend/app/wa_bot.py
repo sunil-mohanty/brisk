@@ -9,6 +9,9 @@ Flow (all ids travel inside button / list-row ids, so no conversation state is s
                                                    taken → new list of times for that day
   later row      later:<token>                  → "Accepted · Awaiting booking" (salon confirms the time)
   "Accept on WhatsApp" from a campaign: the client sends "... (code ABCD123456)" → own quote, accepted → days list
+  campaign template ──[Accept & book]─► cacc:<campaign token>:<client id> → own quote, accepted → days list → time → booked
+                    ──[Not interested]► cno:<campaign token>:<client id>  → a polite reply
+                    ──[Stop offers]───► cstop:<campaign token>:<client id> → no more campaigns to that client (START undoes)
   "accept" / "yes" / "book" typed by hand       → the latest quote we sent to that number
 """
 
@@ -20,9 +23,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from . import booking, whatsapp
-from .activity import UAE
+from .activity import UAE, record
 from .logic import quote_url
-from .models import Campaign, OutboundMessage, Quote, QuoteStatus, WhatsAppInbound
+from .models import Business, Campaign, Customer, OutboundMessage, Quote, QuoteStatus, WhatsAppInbound
 from .utils import is_expired, normalize_phone, quote_label, quote_totals, valid_until
 
 log = logging.getLogger("salon.wa_bot")
@@ -213,9 +216,58 @@ def _campaign(db: Session, code: str, to: str, name: str | None) -> bool:
     return True
 
 
+def _campaign_client(db: Session, parts: list[str], to: str) -> tuple[Campaign, Customer] | None:
+    if len(parts) != 3 or not parts[2].isdigit():
+        return None
+    c = db.scalar(select(Campaign).where(Campaign.token == parts[1]))
+    cu = db.get(Customer, int(parts[2]))
+    if not c or not cu or cu.business_id != c.business_id:
+        return None
+    return c, cu
+
+
+def _campaign_button(db: Session, kind: str, parts: list[str], to: str, name: str | None) -> bool:
+    """A tap on a campaign sent from the WhatsApp Business number."""
+    from .routers.campaigns import campaign_expired
+    from .routers.public import create_campaign_quote
+
+    found = _campaign_client(db, parts, to)
+    if not found:
+        return False
+    c, cu = found
+    salon = c.business.name
+    if kind == "cstop":
+        cu.wa_opt_out = True
+        record(db, c.business_id, "campaign_opt_out", cu.name)
+        whatsapp.reply_text(db, business_id=c.business_id, to=to, body=(
+            f"Done. You won't get offers from {salon} on WhatsApp any more. Your bookings and quotes still come here. "
+            "Reply START if you change your mind."))
+        return True
+    if kind == "cno":
+        record(db, c.business_id, "campaign_not_interested", c.title)
+        whatsapp.reply_text(db, business_id=c.business_id, to=to, body=f"No problem, thank you for letting us know. {salon} 💐")
+        return True
+    # Accept & book: their own accepted quote for this offer (once), then the free days
+    q = db.scalar(select(Quote).where(Quote.campaign_id == c.id, Quote.customer_id == cu.id).order_by(Quote.id.desc()))
+    if q:
+        _accept(db, q, to)
+        return True
+    if not c.active or campaign_expired(c):
+        whatsapp.reply_text(db, business_id=c.business_id, to=to,
+                            body=f"Sorry, the offer \"{c.title}\" has ended. Message {salon} for current prices.")
+        return True
+    q = create_campaign_quote(db, c, cu.name or name or "WhatsApp client", cu.phone or "+" + to)
+    db.flush()
+    db.refresh(q)
+    offer_days(db, q, to, f"Wonderful! \"{c.title}\" at {salon} is yours ✅ Now choose a day for your visit.")
+    return True
+
+
 def _route(db: Session, action: str, to: str, name: str | None) -> bool:
     parts = action.split(":")
     kind, token = parts[0], parts[1] if len(parts) > 1 else ""
+    if kind in ("cacc", "cno", "cstop"):
+        return _campaign_button(db, kind, parts, to, name)
     q = _quote(db, token)
     if kind not in ("accept", "decline", "day", "days", "slot", "later") or not q:
         return False
@@ -239,6 +291,17 @@ def _text(db: Session, text: str, to: str, name: str | None) -> None:
     if m and _campaign(db, m.group(1), to, name):
         return
     words = set(re.findall(r"[\w']+", text.lower()))
+    if words & {"stop", "unsubscribe"} or words & {"start", "subscribe"}:
+        mine = [cu for cu in db.scalars(select(Customer).where(Customer.phone.is_not(None))) if normalize_phone(cu.phone) == to]
+        if mine:
+            stop = bool(words & {"stop", "unsubscribe"})
+            for cu in mine:
+                cu.wa_opt_out = stop
+            names = ", ".join(sorted({db.get(Business, cu.business_id).name for cu in mine}))
+            whatsapp.reply_text(db, business_id=mine[0].business_id, to=to, body=(
+                f"Done. No more offers from {names} on WhatsApp. Reply START to get them again." if stop
+                else f"Welcome back! You'll get offers from {names} on WhatsApp again. Reply STOP any time."))
+            return
     if words & YES:
         q = _latest_quote(db, to, (QuoteStatus.sent, QuoteStatus.viewed, QuoteStatus.accepted))
         if q:
