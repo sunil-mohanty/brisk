@@ -230,6 +230,7 @@ export interface Campaign {
   token: string;
   public_url: string;
   title: string;
+  headline: string | null;
   description: string | null;
   items: QuoteItem[];
   totals: Totals;
@@ -257,6 +258,7 @@ export interface Campaign {
 export interface PublicCampaign {
   business: PublicBusiness;
   title: string;
+  headline: string | null;
   description: string | null;
   items: QuoteItem[];
   totals: Totals;
@@ -524,3 +526,18 @@ export interface PerformanceRow {
 }
 export interface Performance { start: string; end: string; rows: PerformanceRow[] }
 export interface MyDay { staff: Staff; today: StaffToday; appointments: Appointment[]; leave: Leave[]; earnings: Commission | null; week: WeekHours }
+
+/** A campaign template the owner saved (the ready-made library is in lib/offerTemplates.ts). */
+export interface MyTemplate {
+  id: string;
+  name: string;
+  headline: string | null;
+  description: string | null;
+  category: string | null;
+  audience: string[];
+  services: { description: string; quantity: string | number; unit_price: string | number | null }[];
+  discount: string | number;
+  duration_min: number | null;
+  notes: string | null;
+  created_at: string;
+}

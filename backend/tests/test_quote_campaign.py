@@ -47,3 +47,38 @@ def test_campaigns_addon_can_be_switched_off(client):
     assert client.get("/api/quotes", headers=h).status_code == 200  # quotes are part of every plan
     client.patch(f"/api/admin/smes/{me['business']['id']}", json={"campaigns_enabled": True}, headers=a)
     assert client.get("/api/campaigns", headers=h).status_code == 200
+
+
+def test_headline_and_own_templates(client):
+    h = signup(client)
+    c = client.post("/api/campaigns", json={"title": "Hair Makeover Package", "headline": "  A Fresh Look, A Fresh You!  ",
+                                            "items": [{"description": "Ladies haircut", "unit_price": 150}]}, headers=h).json()
+    assert c["headline"] == "A Fresh Look, A Fresh You!"
+    assert c["share_text"].startswith("A Fresh Look, A Fresh You! Hair Makeover Package")
+    assert c["post_caption"].startswith("✨ A Fresh Look, A Fresh You!")
+    pub = client.get(f"/api/public/c/{c['token']}").json()
+    assert pub["headline"] == "A Fresh Look, A Fresh You!"
+    # The picture still renders with the headline as the line above the title, in every design
+    for style in ("classic", "bold", "soft"):
+        client.patch(f"/api/campaigns/{c['id']}/design", json={"style": style}, headers=h)
+        r = client.get(f"/api/public/c/{c['token']}/image/portrait.jpg")
+        assert r.status_code == 200 and r.headers["content-type"].startswith("image/")
+    # Clearing it
+    body = {"title": "Hair Makeover Package", "headline": " ", "items": [{"description": "Ladies haircut", "unit_price": 150}]}
+    assert client.put(f"/api/campaigns/{c['id']}", json=body, headers=h).json()["headline"] is None
+
+    # Own templates: save, list (newest first), same name replaces, delete
+    t = {"name": "Eid glow", "headline": "Glow for Eid!", "category": "Skincare", "audience": ["Ladies"],
+         "services": [{"description": "Classic facial", "unit_price": 180}, {"description": "Threading", "quantity": 1}], "discount": 30}
+    a = client.post("/api/campaigns/templates", json=t, headers=h)
+    assert a.status_code == 201, a.text
+    client.post("/api/campaigns/templates", json={**t, "name": "Weekend men"}, headers=h)
+    client.post("/api/campaigns/templates", json={**t, "name": "eid GLOW ", "headline": "New"}, headers=h)
+    mine = client.get("/api/campaigns/templates", headers=h).json()
+    assert [x["name"] for x in mine] == ["eid GLOW", "Weekend men"] and mine[0]["headline"] == "New"
+    assert mine[0]["services"][1]["unit_price"] is None
+    assert client.delete(f"/api/campaigns/templates/{mine[1]['id']}", headers=h).status_code == 204
+    assert client.delete("/api/campaigns/templates/nope", headers=h).status_code == 404
+    assert len(client.get("/api/campaigns/templates", headers=h).json()) == 1
+    # Another business can't see them
+    assert client.get("/api/campaigns/templates", headers=signup(client, email="other@x.ae")).json() == []

@@ -122,6 +122,8 @@ class Business(Base):
     paid_until: Mapped[date | None] = mapped_column(Date)
     # The owner's own client categories (at most 4), e.g. ["Bridal", "VIP", "Keratin", "Corporate"]
     client_categories: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    # The owner's own campaign templates (saved from New campaign), newest first.
+    offer_templates: Mapped[list[dict]] = mapped_column(JSON, default=list, server_default="[]")
     admin_note: Mapped[str | None] = mapped_column(Text)
     invite_code_id: Mapped[int | None] = mapped_column(ForeignKey("invite_codes.id", ondelete="SET NULL"))
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -470,6 +472,8 @@ class Campaign(Base):
     business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
     token: Mapped[str] = mapped_column(String(24), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(120))
+    # The hook on the picture and at the top of posts, e.g. "A Fresh Look, A Fresh You!"
+    headline: Mapped[str | None] = mapped_column(String(120))
     description: Mapped[str | None] = mapped_column(Text)
     discount: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("5.00"))
@@ -488,6 +492,11 @@ class Campaign(Base):
     items: Mapped[list[CampaignItem]] = relationship(
         back_populates="campaign", cascade="all, delete-orphan", order_by="CampaignItem.position"
     )
+
+    @property
+    def kicker(self) -> str | None:
+        """The small line above the title on the picture: the headline, when there is one."""
+        return (self.headline or "").strip() or None
 
 
 class CampaignArt(Base):

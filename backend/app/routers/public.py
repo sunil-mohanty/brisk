@@ -526,7 +526,7 @@ def _campaign(db: Session, token: str) -> Campaign:
 
 def _public_campaign(c: Campaign) -> s.PublicCampaign:
     return s.PublicCampaign(
-        business=public_business(c.business), title=c.title, description=c.description,
+        business=public_business(c.business), title=c.title, headline=c.headline, description=c.description,
         items=[item_out(i) for i in c.items], totals=campaign_totals(c), vat_rate=c.vat_rate, currency=c.business.currency,
         valid_until=c.valid_until, expired=campaign_expired(c), active=c.active, duration_min=c.duration_min,
         notes=c.notes, open_days=_open_days(c.business), whatsapp_accept_url=whatsapp_accept_url(c),

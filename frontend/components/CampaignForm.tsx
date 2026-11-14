@@ -6,16 +6,21 @@ import { blankRow, cleanRows, ItemsEditor, Totals, type Row } from "@/components
 import { useSession } from "@/components/session";
 import { ChannelIcon, StepCard } from "@/components/QuoteCampaign";
 import { useCategories } from "@/components/Segments";
+import { type Applied, TemplateStrip, useMyTemplates } from "@/components/TemplateLibrary";
 import { ErrorBox, toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import { addDays, todayUAE } from "@/lib/format";
 import type { Campaign, CatalogItem } from "@/lib/types";
 import { duration } from "@/lib/vocab";
 
-export function CampaignForm({ campaign }: { campaign?: Campaign }) {
+export function CampaignForm({ campaign, template }: { campaign?: Campaign; template?: string | null }) {
   const router = useRouter();
   const { business } = useSession();
   const [title, setTitle] = useState(campaign?.title ?? "");
+  const [headline, setHeadline] = useState(campaign?.headline ?? "");
+  const [applied, setApplied] = useState<Applied | null>(null);
+  const [mine, reloadMine] = useMyTemplates();
+  const [saving, setSaving] = useState(false);
   const [description, setDescription] = useState(campaign?.description ?? "");
   const [rows, setRows] = useState<Row[]>(campaign ? campaign.items.map((i) => ({ description: i.description, quantity: String(Number(i.quantity)), unit_price: String(Number(i.unit_price)) })) : [{ ...blankRow }]);
   const [discount, setDiscount] = useState(campaign ? String(Number(campaign.totals.discount)) : "0");
@@ -31,18 +36,54 @@ export function CampaignForm({ campaign }: { campaign?: Campaign }) {
   const flip = (c: Channel) => setChan((x) => { const n = new Set(x); if (n.has(c)) n.delete(c); else n.add(c); return n; });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const onMenu = useCallback((m: CatalogItem[]) => setMenu(m), []);
+  const [menuReady, setMenuReady] = useState(false);
+  const onMenu = useCallback((m: CatalogItem[]) => { setMenu(m); setMenuReady(true); }, []);
   const byName = new Map(menu.map((c) => [c.name.trim().toLowerCase(), c.duration_min ?? 0]));
   const guess = rows.reduce((a, r) => a + (byName.get(r.description.trim().toLowerCase()) ?? 0) * (Number(r.quantity) || 1), 0);
+
+  function apply(a: Applied) {
+    setApplied(a);
+    setTitle(a.title); setHeadline(a.headline); setDescription(a.description);
+    setRows(a.rows.length ? a.rows : [{ ...blankRow }]);
+    setDiscount(a.discount ?? "0"); setMinutes(a.minutes ?? ""); setNotes(a.notes ?? "");
+    setError(null);
+  }
+  function clearTemplate() {
+    setApplied(null);
+    setTitle(""); setHeadline(""); setDescription(""); setRows([{ ...blankRow }]); setDiscount("0"); setMinutes(""); setNotes("");
+  }
+  // Services typed (or from a template) with no price yet
+  const unpriced = rows.filter((r) => r.description.trim() && r.unit_price === "").map((r) => r.description.trim());
+
+  async function saveTemplate() {
+    const services = rows.filter((r) => r.description.trim()).map((r) => ({
+      description: r.description.trim(), quantity: Number(r.quantity) || 1, unit_price: r.unit_price === "" ? null : Number(r.unit_price),
+    }));
+    if (title.trim().length < 2) return toast("Give the offer a name first: it becomes the template's name.");
+    if (!services.length) return toast("Add at least one service first.");
+    setSaving(true);
+    try {
+      const replaced = (mine ?? []).some((x) => x.name.trim().toLowerCase() === title.trim().toLowerCase());
+      await api.post("/campaigns/templates", {
+        name: title.trim(), headline: headline.trim() || null, description: description.trim() || null, services,
+        category: applied?.from.category ?? null, audience: applied?.from.audience ?? [],
+        discount: Number(discount) || 0, duration_min: Number(minutes) || null, notes: notes.trim() || null,
+      });
+      reloadMine();
+      toast(replaced ? `“${title.trim()}” updated in My templates` : `Saved to My templates. Find it under Browse templates next time.`);
+    } catch (e) { toast((e as Error).message); }
+    setSaving(false);
+  }
 
   async function save() {
     const items = cleanRows(rows);
     if (title.trim().length < 2) return setError("Give the offer a name clients will recognise.");
+    if (unpriced.length) return setError(`Add your price for ${unpriced.join(", ")}, or remove ${unpriced.length === 1 ? "it" : "them"}.`);
     if (!items.length) return setError("Add at least one service with a price.");
     setBusy(true);
     setError(null);
     const body = {
-      title: title.trim(), description: description.trim() || null, items, discount: Number(discount) || 0, vat_rate: Number(vat),
+      title: title.trim(), headline: headline.trim() || null, description: description.trim() || null, items, discount: Number(discount) || 0, vat_rate: Number(vat),
       valid_until: until || null, duration_min: Number(minutes) || guess || 60, notes: notes.trim() || null, active: campaign?.active ?? true,
     };
     try {
@@ -61,7 +102,8 @@ export function CampaignForm({ campaign }: { campaign?: Campaign }) {
     <>
       <ErrorBox error={error} />
       <div className="form" style={{ marginTop: error ? 12 : 0 }}>
-        <label className="full">Offer name<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Bridal glow package" maxLength={120} /></label>
+        <label>Offer name<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Bridal glow package" maxLength={120} /></label>
+        <label>Headline <span className="hint">(the hook on the picture and posts)</span><input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Glow beautifully on your big day!" maxLength={120} /></label>
         <label className="full">What clients get <span className="hint">(shown on the offer page)</span><textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Bridal hair & makeup on the day, plus a trial session the week before." /></label>
         <ItemsEditor rows={rows} setRows={setRows} onMenu={onMenu} />
         <label>Discount ({business.currency})<input type="number" min="0" step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
@@ -73,6 +115,10 @@ export function CampaignForm({ campaign }: { campaign?: Campaign }) {
         <label className="full">Terms <span className="hint">(optional)</span><textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="50% deposit confirms your date. Free reschedule up to 48 hours before." /></label>
       </div>
       <Totals rows={rows} discount={discount} vat={vat} />
+      <div className="tpl-save">
+        <button type="button" className="btn sm ghost" onClick={saveTemplate} disabled={saving}>{saving ? "Saving…" : "☆ Save as my template"}</button>
+        <span className="small muted">Keep this offer to send again, for Eid, Ramadan or every month.</span>
+      </div>
     </>
   );
 
@@ -87,11 +133,12 @@ export function CampaignForm({ campaign }: { campaign?: Campaign }) {
       </div>
     );
   }
-  const offered = title.trim().length >= 2 && cleanRows(rows).length > 0;
+  const offered = title.trim().length >= 2 && cleanRows(rows).length > 0 && !unpriced.length;
   return (
     <>
       <div className="qc-flow">
-        <StepCard n={1} title="Create the offer" done={offered} sub="Name it, add what clients get and the price. The picture is designed from this.">
+        <StepCard n={1} title="Create the offer" done={offered} sub="Start from a template or write your own: name it, add what clients get and the price. The picture is designed from this.">
+          <TemplateStrip menu={menu} applied={applied} onApply={apply} onClear={clearTemplate} mine={mine} reloadMine={reloadMine} initial={menuReady ? template : null} />
           {fields}
         </StepCard>
         <StepCard n={2} title="Where should it go?" done={chan.size > 0} sub="Pick one or more. You can send it to more places later from the campaign page.">

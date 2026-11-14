@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-export function Sheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+export function Sheet({ open, onClose, children, wide }: { open: boolean; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -11,7 +11,7 @@ export function Sheet({ open, onClose, children }: { open: boolean; onClose: () 
     if (!open && d.open) d.close();
   }, [open]);
   return (
-    <dialog ref={ref} className="sheet" onClose={onClose} onClick={(e) => e.target === ref.current && onClose()}>
+    <dialog ref={ref} className={`sheet${wide ? " wide" : ""}`} onClose={onClose} onClick={(e) => e.target === ref.current && onClose()}>
       {open && children}
     </dialog>
   );

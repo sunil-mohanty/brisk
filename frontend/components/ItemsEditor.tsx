@@ -56,7 +56,7 @@ export function ItemsEditor({ rows, setRows, onMenu }: { rows: Row[]; setRows: (
       <div className="items">
         <div className="item itemhead" aria-hidden="true"><span>Service</span><span>Qty</span><span>Price each ({cur})</span><span /></div>
         {rows.map((r, i) => (
-          <div className="item" key={i}>
+          <div className={`item${r.description.trim() && r.unit_price === "" ? " needs-price" : ""}`} key={i}>
             <span className="ifield" data-l="Service"><input aria-label="Service" list="menu-list" value={r.description} onChange={(e) => update(i, "description", e.target.value)} placeholder={i ? "Another service" : "Bridal hair & makeup"} /></span>
             <span className="ifield" data-l="Qty"><input aria-label="Quantity" type="number" min="0.01" step="any" inputMode="decimal" value={r.quantity} onChange={(e) => update(i, "quantity", e.target.value)} /></span>
             <span className="ifield" data-l={`Price each (${cur})`}><input aria-label={`Price each (${cur})`} type="number" min="0" step="0.01" inputMode="decimal" value={r.unit_price} onChange={(e) => update(i, "unit_price", e.target.value)} placeholder="0.00" /></span>

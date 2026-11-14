@@ -1079,6 +1079,7 @@ class BulkQuoteIn(BaseModel):
 # ---------- campaigns ----------
 class CampaignIn(BaseModel):
     title: str = Field(min_length=2, max_length=120)
+    headline: str | None = Field(default=None, max_length=120)
     description: str | None = Field(default=None, max_length=2000)
     items: list[QuoteItemIn] = Field(min_length=1, max_length=30)
     discount: Decimal = Field(default=Decimal("0"), ge=0)
@@ -1089,11 +1090,36 @@ class CampaignIn(BaseModel):
     active: bool = True
 
 
+class TemplateService(BaseModel):
+    description: str = Field(min_length=1, max_length=300)
+    quantity: Decimal = Field(default=Decimal("1"), gt=0, le=1000)
+    unit_price: Decimal | None = Field(default=None, ge=0)
+
+
+class OfferTemplateIn(BaseModel):
+    """An owner's own campaign template: the offer without dates, so it can be reused."""
+    name: str = Field(min_length=2, max_length=120)
+    headline: str | None = Field(default=None, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    category: str | None = Field(default=None, max_length=40)
+    audience: list[str] = Field(default_factory=list, max_length=5)
+    services: list[TemplateService] = Field(min_length=1, max_length=30)
+    discount: Decimal = Field(default=Decimal("0"), ge=0)
+    duration_min: int | None = Field(default=None, ge=15, le=600)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class OfferTemplateOut(OfferTemplateIn):
+    id: str
+    created_at: datetime
+
+
 class CampaignOut(BaseModel):
     id: int
     token: str
     public_url: str
     title: str
+    headline: str | None = None
     description: str | None
     items: list[QuoteItemOut]
     totals: TotalsOut
@@ -1121,6 +1147,7 @@ class CampaignOut(BaseModel):
 class PublicCampaign(BaseModel):
     business: PublicBusiness
     title: str
+    headline: str | None = None
     description: str | None
     items: list[QuoteItemOut]
     totals: TotalsOut

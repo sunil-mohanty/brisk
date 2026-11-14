@@ -17,7 +17,7 @@ from ..config import get_settings
 from ..db import get_db
 from .. import ai_art, creative, designer, social, whatsapp
 from ..logic import get_owned, item_out
-from ..models import Campaign, CampaignItem, CampaignSend, Customer, Quote, User
+from ..models import Campaign, CampaignItem, CampaignSend, Customer, Quote, User, utcnow
 from ..security import current_user
 from ..utils import money, new_token, quote_totals, whatsapp_link
 
@@ -45,11 +45,11 @@ def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
     url = campaign_url(c)
     until = f" Offer ends {c.valid_until:%d %b}." if c.valid_until else ""
     return s.CampaignOut(
-        id=c.id, token=c.token, public_url=url, title=c.title, description=c.description,
+        id=c.id, token=c.token, public_url=url, title=c.title, headline=c.headline, description=c.description,
         items=[item_out(i) for i in c.items], totals=t, vat_rate=c.vat_rate, valid_until=c.valid_until,
         expired=campaign_expired(c), duration_min=c.duration_min, notes=c.notes, active=c.active, views=c.views,
         accepted=accepted, booked=booked, created_at=c.created_at,
-        share_text=f"{c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until} Accept and book your time here: {url}"
+        share_text=(f"{c.headline} " if c.headline else "") + f"{c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until} Accept and book your time here: {url}"
         + (f" or on WhatsApp: {wa}" if (wa := whatsapp_accept_url(c)) else ""),
         whatsapp_accept_url=wa,
         image_version=creative.version(c),
@@ -67,7 +67,8 @@ def client_message(c: Campaign, first_name: str) -> str:
     t = totals(c)
     until = f" Offer ends {c.valid_until:%d %b}." if c.valid_until else ""
     hi = f"Hi {first_name}!" if first_name else "Hi!"
-    return (f"{hi} {c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until}\n"
+    hook = f" {c.headline}" if c.headline else ""
+    return (f"{hi}{hook} {c.title} at {c.business.name}: {c.business.currency} {t.total:,.0f}.{until}\n"
             f"See the offer and book your time: {campaign_url(c)}")
 
 
@@ -98,7 +99,7 @@ def create_campaign(body: s.CampaignIn, user: User = Depends(current_user), db: 
     while db.scalar(select(Campaign.id).where(Campaign.token == token)):
         token = new_token(8)
     c = Campaign(
-        business_id=user.business_id, token=token, title=body.title.strip(), description=body.description,
+        business_id=user.business_id, token=token, title=body.title.strip(), headline=_clean(body.headline), description=body.description,
         discount=money(body.discount), vat_rate=body.vat_rate if body.vat_rate is not None else user.business.default_vat_rate,
         valid_until=body.valid_until, duration_min=body.duration_min or 60, notes=body.notes, active=body.active, design_style="bold",  # themed from the package text
         items=_items(body.items),
@@ -110,6 +111,44 @@ def create_campaign(body: s.CampaignIn, user: User = Depends(current_user), db: 
     return campaign_out(db, c)
 
 
+def _clean(v: str | None) -> str | None:
+    return (v or "").strip() or None
+
+
+MAX_TEMPLATES = 50
+
+
+@router.get("/templates", response_model=list[s.OfferTemplateOut])
+def my_templates(user: User = Depends(current_user)):
+    """The owner's own templates. The ready-made library lives in the app, so it can be read without a call."""
+    return user.business.offer_templates or []
+
+
+@router.post("/templates", response_model=s.OfferTemplateOut, status_code=201)
+def save_template(body: s.OfferTemplateIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    b = user.business
+    mine = list(b.offer_templates or [])
+    # Saving again under the same name replaces the old one.
+    mine = [x for x in mine if x.get("name", "").strip().lower() != body.name.strip().lower()]
+    if len(mine) >= MAX_TEMPLATES:
+        raise HTTPException(400, f"You can keep up to {MAX_TEMPLATES} templates. Delete one you don't use first.")
+    row = {**body.model_dump(mode="json"), "name": body.name.strip(), "headline": _clean(body.headline),
+           "id": new_token(8).lower(), "created_at": utcnow().isoformat()}
+    b.offer_templates = [row, *mine]
+    db.commit()
+    return row
+
+
+@router.delete("/templates/{tid}", status_code=204)
+def delete_template(tid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    b = user.business
+    left = [x for x in (b.offer_templates or []) if x.get("id") != tid]
+    if len(left) == len(b.offer_templates or []):
+        raise HTTPException(404, "Template not found")
+    b.offer_templates = left
+    db.commit()
+
+
 @router.get("/{cid}", response_model=s.CampaignOut)
 def get_campaign(cid: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     return campaign_out(db, _get(db, cid, user.business_id))
@@ -119,7 +158,7 @@ def get_campaign(cid: int, user: User = Depends(current_user), db: Session = Dep
 def update_campaign(cid: int, body: s.CampaignIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Edits apply to new acceptances; clients who already accepted keep the quote they accepted."""
     c = _get(db, cid, user.business_id)
-    c.title, c.description, c.discount = body.title.strip(), body.description, money(body.discount)
+    c.title, c.headline, c.description, c.discount = body.title.strip(), _clean(body.headline), body.description, money(body.discount)
     if body.vat_rate is not None:
         c.vat_rate = body.vat_rate
     c.valid_until, c.notes, c.active = body.valid_until, body.notes, body.active

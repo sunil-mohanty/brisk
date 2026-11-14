@@ -233,10 +233,11 @@ def _text_block(d, c: Campaign, ctx: Ctx, x: int, top: int, bottom: int, width: 
     y = top + gap
     cx = x + width // 2
     label = getattr(c, "kicker", None) or (("EXCLUSIVE OFFER" if ctx.re_ else "SPECIAL OFFER") + f" · {ctx.theme.label.upper()}")
+    lf = cr.fit_font(d, label, 24, width)
     if align == "left":
-        d.text((x, y), label, font=cr.body(24, True), fill=accent)
+        d.text((x, y), label, font=lf, fill=accent)
     else:
-        d.text((cx, y), label, font=cr.body(24, True), fill=accent, anchor="ma")
+        d.text((cx, y), label, font=lf, fill=accent, anchor="ma")
     y += label_h
     for ln in lines:
         if align == "left":

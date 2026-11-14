@@ -232,7 +232,7 @@ def default_caption(c: Campaign, url: str) -> str:
     b = c.business
     t = quote_totals(c.items, c.discount, c.vat_rate)
     price = creative._money(t.total, b.currency)
-    lines = [f"✨ {c.title} at {b.name}"]
+    lines = ([f"✨ {c.headline}", f"{c.title} at {b.name}"] if getattr(c, "headline", None) else [f"✨ {c.title} at {b.name}"])
     if c.description:
         lines.append(c.description.strip())
     elif c.items:

@@ -77,7 +77,7 @@ function QuoteCampaign() {
             <span>{ChannelIcon.whatsapp()}WhatsApp group</span>
             <span>{ChannelIcon.link()}Link & QR</span>
           </div>
-          <Steps steps={["Create the offer and its picture", "Choose where it goes", "See who accepts and books"]} />
+          <Steps steps={["Pick one of 50 ready-made offers, or create your own", "Choose where it goes", "See who accepts and books"]} />
           {on ? (
             <>
               <div className="qc-stats">

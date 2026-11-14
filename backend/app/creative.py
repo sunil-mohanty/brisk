@@ -105,13 +105,22 @@ SALON_PALETTE = dict(  # salons: ink & copper on warm stone (the Brisk sign-up l
 )
 
 
+def fit_font(d, text: str, size: int, width: int, bold: bool = True, smallest: int = 16):
+    """The body font at the largest size (up to `size`) that fits `text` on one line in `width`."""
+    f = body(size, bold)
+    while size > smallest and d.textlength(text, font=f) > width:
+        size -= 1
+        f = body(size, bold)
+    return f
+
+
 def is_real_estate(c: Campaign) -> bool:
     return (c.business.business_type or "") == "real_estate"
 
 
 def version(c: Campaign) -> str:
     """Changes when anything on the picture changes (for cache-busting preview URLs)."""
-    key = "|".join([c.title, c.description or "", str(c.discount), str(c.vat_rate), str(c.valid_until), c.business.name,
+    key = "|".join([c.title, getattr(c, "headline", None) or "", c.description or "", str(c.discount), str(c.vat_rate), str(c.valid_until), c.business.name,
                     c.business.currency, str(getattr(c, "design_style", "")), str(getattr(c, "design_seed", "")),
                     str(getattr(c, "art_id", ""))] + [f"{i.description}:{i.quantity}:{i.unit_price}" for i in c.items])
     return hashlib.sha1(key.encode()).hexdigest()[:10]
@@ -220,7 +229,8 @@ def _render_classic(c: Campaign, url: str, fmt: str = "portrait") -> bytes:
         d.rectangle([x0, arch_top + arch_w // 2, x0 + arch_w, max(arch_top + arch_w // 2, pill_cy)], fill=ACCENT_SOFT)
 
     y = top
-    d.text((W // 2, y + 12), getattr(c, "kicker", None) or ("EXCLUSIVE OFFER" if re_ else "SPECIAL OFFER"), font=body(24 if not tall else 28, True), fill=ACCENT_DEEP, anchor="mm")
+    kicker = getattr(c, "kicker", None) or ("EXCLUSIVE OFFER" if re_ else "SPECIAL OFFER")
+    d.text((W // 2, y + 12), kicker, font=fit_font(d, kicker, 24 if not tall else 28, inner), fill=ACCENT_DEEP, anchor="mm")
     y += label_h
     for ln in lines:
         d.text((W // 2, y), ln, font=tf, fill=INK, anchor="ma")

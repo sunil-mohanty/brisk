@@ -84,6 +84,7 @@ export function CampaignView() {
       <PubHeader business={c.business} />
       <div className="offer-hero">
         <span className="k">{ended ? "Offer ended" : c.valid_until ? `Offer until ${fmtDate(c.valid_until)}` : "Special offer"}</span>
+        {c.headline && <p className="offer-hook">{c.headline}</p>}
         <h1>{c.title}</h1>
         {c.description && <p>{c.description}</p>}
         <div className="price">{Number(c.totals.discount) > 0 && <s>{money(before, cur)}</s>}{money(c.totals.total, cur)}</div>
