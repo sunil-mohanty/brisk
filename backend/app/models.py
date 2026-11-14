@@ -474,6 +474,8 @@ class Campaign(Base):
     title: Mapped[str] = mapped_column(String(120))
     # The hook on the picture and at the top of posts, e.g. "A Fresh Look, A Fresh You!"
     headline: Mapped[str | None] = mapped_column(String(120))
+    # Made in New campaign but not published yet: the owner is still looking at the preview. Not public.
+    draft: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     description: Mapped[str | None] = mapped_column(Text)
     discount: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("5.00"))

@@ -231,6 +231,10 @@ export interface Campaign {
   public_url: string;
   title: string;
   headline: string | null;
+  draft: boolean;
+  art_id: number | null;
+  art_kind: "ai" | "upload" | null;
+  wa_message: string;
   description: string | null;
   items: QuoteItem[];
   totals: Totals;
@@ -259,6 +263,7 @@ export interface PublicCampaign {
   business: PublicBusiness;
   title: string;
   headline: string | null;
+  draft: boolean;
   description: string | null;
   items: QuoteItem[];
   totals: Totals;
@@ -539,5 +544,6 @@ export interface MyTemplate {
   discount: string | number;
   duration_min: number | null;
   notes: string | null;
+  image_prompt: string | null;
   created_at: string;
 }

@@ -82,3 +82,35 @@ def test_headline_and_own_templates(client):
     assert len(client.get("/api/campaigns/templates", headers=h).json()) == 1
     # Another business can't see them
     assert client.get("/api/campaigns/templates", headers=signup(client, email="other@x.ae")).json() == []
+
+
+def test_campaign_draft_with_picture_then_publish(client):
+    h = signup(client)
+    art = client.post("/api/media", files={"file": ("salon.png", _png(), "image/png")}, headers=h).json()
+    body = {"title": "Facial & Foot Reflexology", "headline": "Glow from Head to Toe!",
+            "items": [{"description": "Classic facial", "unit_price": 250}], "art_id": art["id"], "draft": True}
+    c = client.post("/api/campaigns", json=body, headers=h).json()
+    assert c["draft"] and not c["active"] and c["design_style"] == "photo" and c["art_kind"] == "upload"
+    # The picture renders with the photo, but the offer isn't public yet
+    assert client.get(f"/api/public/c/{c['token']}/image/portrait.jpg").status_code == 200
+    assert client.get(f"/api/public/c/{c['token']}").json()["draft"] is True
+    acc = client.post(f"/api/public/c/{c['token']}/accept", json={"name": "Mira", "phone": "0501234567"})
+    assert acc.status_code == 409
+    # Switch to a ready-made design and back to the photo
+    upd = client.put(f"/api/campaigns/{c['id']}", json={**body, "style": "soft"}, headers=h).json()
+    assert upd["design_style"] == "soft" and upd["draft"]
+    assert client.put(f"/api/campaigns/{c['id']}", json={**body, "style": "photo"}, headers=h).json()["design_style"] == "photo"
+    # Publish
+    pub = client.put(f"/api/campaigns/{c['id']}", json={**body, "draft": False, "active": True}, headers=h).json()
+    assert not pub["draft"] and pub["active"]
+    assert client.post(f"/api/public/c/{c['token']}/accept", json={"name": "Mira", "phone": "0501234567"}).status_code == 201
+    # Someone else's picture can't be used; "photo" needs a picture
+    other = signup(client, email="other2@x.ae")
+    bad = client.post("/api/campaigns", json={**body, "draft": None}, headers=other)
+    assert bad.status_code == 422
+    nopic = client.post("/api/campaigns", json={**body, "art_id": None, "style": "photo"}, headers=other)
+    assert nopic.status_code == 422
+    # Templates keep their picture description
+    t = client.post("/api/campaigns/templates", json={"name": "Spa day", "image_prompt": "Candle-lit spa room",
+                                                      "services": [{"description": "Massage", "unit_price": 300}]}, headers=h).json()
+    assert t["image_prompt"] == "Candle-lit spa room"

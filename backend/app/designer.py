@@ -233,11 +233,14 @@ def _text_block(d, c: Campaign, ctx: Ctx, x: int, top: int, bottom: int, width: 
     y = top + gap
     cx = x + width // 2
     label = getattr(c, "kicker", None) or (("EXCLUSIVE OFFER" if ctx.re_ else "SPECIAL OFFER") + f" · {ctx.theme.label.upper()}")
-    lf = cr.fit_font(d, label, 24, width)
+    hook = getattr(c, "kicker", None)
+    lf = cr.fit_font(d, label, 32 if hook and fmt != "square" else 28 if hook else 24, width)
+    # The headline on a dark photo is lighter, so it reads
+    lc = _mix(accent, (255, 255, 255), .45) if hook and sum(ink) > 600 else accent
     if align == "left":
-        d.text((x, y), label, font=lf, fill=accent)
+        d.text((x, y), label, font=lf, fill=lc)
     else:
-        d.text((cx, y), label, font=lf, fill=accent, anchor="ma")
+        d.text((cx, y), label, font=lf, fill=lc, anchor="ma")
     y += label_h
     for ln in lines:
         if align == "left":

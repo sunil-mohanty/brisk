@@ -1088,6 +1088,10 @@ class CampaignIn(BaseModel):
     duration_min: int | None = Field(default=None, ge=15, le=600)
     notes: str | None = None
     active: bool = True
+    # The picture: an upload or AI picture from POST /media or /media/ai (becomes the background), or a ready-made design
+    art_id: int | None = None
+    style: str | None = Field(default=None, pattern="^(classic|bold|soft|photo)$")
+    draft: bool | None = None  # True: save without publishing (New campaign preview). False: publish it.
 
 
 class TemplateService(BaseModel):
@@ -1107,6 +1111,7 @@ class OfferTemplateIn(BaseModel):
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     duration_min: int | None = Field(default=None, ge=15, le=600)
     notes: str | None = Field(default=None, max_length=2000)
+    image_prompt: str | None = Field(default=None, max_length=400)  # what to ask the AI for
 
 
 class OfferTemplateOut(OfferTemplateIn):
@@ -1140,6 +1145,10 @@ class CampaignOut(BaseModel):
     design_style: str = "classic"
     theme: str = ""  # what the designer read from the package, e.g. "Skin & facial"
     has_ai_art: bool = False
+    art_id: int | None = None
+    art_kind: str | None = None  # ai | upload
+    draft: bool = False
+    wa_message: str = ""  # what each client gets on WhatsApp; {name} is their first name
     ai_left: int | None = None  # AI pictures left this month; None = AI not set up
     sent_whatsapp: int = 0  # clients the owner sent it to on WhatsApp
 
@@ -1148,6 +1157,7 @@ class PublicCampaign(BaseModel):
     business: PublicBusiness
     title: str
     headline: str | None = None
+    draft: bool = False
     description: str | None
     items: list[QuoteItemOut]
     totals: TotalsOut

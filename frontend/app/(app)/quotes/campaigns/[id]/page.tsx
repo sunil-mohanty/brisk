@@ -13,10 +13,11 @@ import { duration } from "@/lib/vocab";
 import { SocialPost } from "@/components/SocialPost";
 import { SendToClients } from "@/components/Segments";
 import { AddonGate, ChannelIcon, useCampaignsOn } from "@/components/QuoteCampaign";
+import { CampaignPreview } from "@/components/CampaignPreview";
 
 export default function CampaignPage() {
   const on = useCampaignsOn();
-  if (!on) return <><PageHead title="Campaign" /><AddonGate /></>;
+  if (!on) return <><PageHead title="Campaign" back={{ href: "/quotes?tab=campaigns", label: "Quote & Campaign" }} /><AddonGate /></>;
   return <Suspense fallback={<Loading />}><CampaignDetail /></Suspense>;
 }
 
@@ -42,7 +43,7 @@ function CampaignDetail() {
 
   async function setActive(active: boolean) {
     if (!c) return;
-    const body = { title: c.title, description: c.description, items: c.items.map((i) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
+    const body = { title: c.title, headline: c.headline, description: c.description, draft: active ? false : undefined, items: c.items.map((i) => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price) })),
       discount: Number(c.totals.discount), vat_rate: Number(c.vat_rate), valid_until: c.valid_until, duration_min: c.duration_min, notes: c.notes, active };
     try { setC(await api.put<Campaign>(`/campaigns/${c.id}`, body)); toast(active ? "Campaign is live again" : "Campaign paused. The link now says the offer has ended."); }
     catch (e) { toast((e as Error).message); }
@@ -56,7 +57,8 @@ function CampaignDetail() {
 
   if (error) return <ErrorBox error={error} />;
   if (!c) return <Loading />;
-  if (editing) return <><PageHead title="Edit campaign" eyebrow={c.title} sub="Changes apply to new clients. Anyone who already accepted keeps the quote they accepted." /><CampaignForm campaign={c} /></>;
+  if (editing) return <><PageHead title="Edit campaign" eyebrow={c.title} back={{ href: `/quotes/campaigns/${c.id}`, label: "Back to the campaign" }} sub="Change the offer or the picture. Changes apply to new clients; anyone who already accepted keeps the quote they accepted." /><CampaignForm campaign={c} /></>;
+  const editHref = `/quotes/campaigns/${c.id}?edit=1`;
   const cur = business.currency;
   const safe = c.title.replace(/[^A-Za-z0-9_-]+/g, "-");
 
@@ -64,13 +66,15 @@ function CampaignDetail() {
     <>
       <PageHead
         title={c.title}
-        eyebrow={!c.active ? "Paused" : c.expired ? "Ended" : "Live"}
+        back={{ href: "/quotes?tab=campaigns", label: "Quote & Campaign" }}
+        eyebrow={c.draft ? "Draft" : !c.active ? "Paused" : c.expired ? "Ended" : "Live"}
         sub={`${money(c.totals.total, cur)} · ${duration(c.duration_min)}${c.valid_until ? ` · until ${fmtDate(c.valid_until)}` : ""}`}
         action={<>
-          <Link className="btn" href={`/quotes/campaigns/${c.id}?edit=1`}>Edit</Link>
-          {c.active ? <button className="btn" onClick={() => setActive(false)}>Pause</button> : <button className="btn primary" onClick={() => setActive(true)}>Resume</button>}
+          <Link className="btn" href={editHref}>✎ Edit</Link>
+          {c.active ? <button className="btn" onClick={() => setActive(false)}>Pause</button> : <button className="btn primary" onClick={() => setActive(true)}>{c.draft ? "Publish" : "Resume"}</button>}
         </>}
       />
+      {c.draft && <div className="banner warn" style={{ marginBottom: 14 }}>This campaign is a draft: clients can&apos;t see it yet. Check it, then press <b>Publish</b>.</div>}
       <div className="kpis">
         <div className="kpi"><span>Sent on WhatsApp</span><strong>{c.sent_whatsapp ?? 0}</strong><em>clients you messaged</em></div>
         <div className="kpi"><span>Page views</span><strong>{c.views}</strong><em>people who opened the offer</em></div>
@@ -93,10 +97,16 @@ function CampaignDetail() {
             <span className="chan-ico">{ChannelIcon.link()}</span><span><b>Link & QR code</b><small>TikTok, ads, posters</small></span>
           </button>
         </div>
-        {launch === "social" && <SocialPost c={c} onChange={setC} prefer={prefer} />}
-        {launch === "whatsapp" && <SendToClients campaignId={c.id} initialTag={sendTag} onSent={(n) => setC((x) => x && { ...x, sent_whatsapp: (x.sent_whatsapp ?? 0) + n })} />}
+        {launch === "social" && <SocialPost c={c} onChange={setC} prefer={prefer} editHref={editHref} />}
+        {launch === "whatsapp" && (
+          <div className="launch-split">
+            <CampaignPreview c={c} as="whatsapp" editHref={editHref} />
+            <SendToClients campaignId={c.id} initialTag={sendTag} onSent={(n) => setC((x) => x && { ...x, sent_whatsapp: (x.sent_whatsapp ?? 0) + n })} />
+          </div>
+        )}
         {launch === "link" && (
-          <div className="detail">
+          <div className="launch-split three">
+            <CampaignPreview c={c} as="link" editHref={editHref} />
             <section className="panel">
               <h2>Share the link yourself <span className="muted small">TikTok, Snapchat, WhatsApp status, ads</span></h2>
               <div className="linkbox">

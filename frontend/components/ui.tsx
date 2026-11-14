@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { cap } from "@/lib/format";
 import type { Quote } from "@/lib/types";
@@ -39,10 +41,13 @@ export function QuotePill({ q }: { q: Pick<Quote, "status" | "expired" | "shared
 }
 
 /** The header bar at the top of each page: title, a pill (date or context), and the page's actions. */
-export function PageHead({ eyebrow, title, sub, action }: { eyebrow?: React.ReactNode; title: string; sub?: React.ReactNode; action?: React.ReactNode }) {
+export function PageHead({ eyebrow, title, sub, action, back }: {
+  eyebrow?: React.ReactNode; title: string; sub?: React.ReactNode; action?: React.ReactNode; back?: { href: string; label: string };
+}) {
   return (
     <header className="head">
       <div className="head-l">
+        {back && <Link className="backlink" href={back.href}><span aria-hidden="true">←</span> {back.label}</Link>}
         <div className="head-t">
           <h1>{title}</h1>
           {eyebrow && <span className="head-pill">{eyebrow}</span>}

@@ -17,7 +17,7 @@ from ..config import get_settings
 from ..db import get_db
 from .. import ai_art, creative, designer, social, whatsapp
 from ..logic import get_owned, item_out
-from ..models import Campaign, CampaignItem, CampaignSend, Customer, Quote, User, utcnow
+from ..models import Campaign, CampaignArt, CampaignItem, CampaignSend, Customer, Quote, User, utcnow
 from ..security import current_user
 from ..utils import money, new_token, quote_totals, whatsapp_link
 
@@ -35,6 +35,12 @@ def campaign_expired(c: Campaign) -> bool:
 def totals(c: Campaign) -> s.TotalsOut:
     t = quote_totals(c.items, c.discount, c.vat_rate)
     return s.TotalsOut(subtotal=t.subtotal, discount=t.discount, taxable=t.taxable, vat=t.vat, total=t.total)
+
+
+def _art_kind(db: Session, c: Campaign) -> str | None:
+    if not c.art_id:
+        return None
+    return db.scalar(select(CampaignArt.kind).where(CampaignArt.id == c.art_id))
 
 
 def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
@@ -56,7 +62,8 @@ def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
         post_caption=social.default_caption(c, url),
         design_style=c.design_style or "classic",
         theme=designer.detect(c).label,
-        has_ai_art=c.art_id is not None,
+        wa_message=client_message(c, "{name}"),
+        has_ai_art=c.art_id is not None, art_id=c.art_id, art_kind=_art_kind(db, c), draft=c.draft,
         ai_left=ai_art.left_this_month(db, c.business_id),
         sent_whatsapp=db.scalar(select(func.count(CampaignSend.id)).where(CampaignSend.campaign_id == c.id)) or 0,
     )
@@ -102,9 +109,13 @@ def create_campaign(body: s.CampaignIn, user: User = Depends(current_user), db: 
         business_id=user.business_id, token=token, title=body.title.strip(), headline=_clean(body.headline), description=body.description,
         discount=money(body.discount), vat_rate=body.vat_rate if body.vat_rate is not None else user.business.default_vat_rate,
         valid_until=body.valid_until, duration_min=body.duration_min or 60, notes=body.notes, active=body.active, design_style="bold",  # themed from the package text
-        items=_items(body.items),
+        items=_items(body.items), draft=bool(body.draft),
     )
+    if c.draft:
+        c.active = False
     db.add(c)
+    db.flush()
+    _picture(db, c, body)
     record(db, user.business_id, "campaign_created")
     db.commit()
     db.refresh(c)
@@ -116,6 +127,20 @@ def _clean(v: str | None) -> str | None:
 
 
 MAX_TEMPLATES = 50
+
+
+def _picture(db: Session, c: Campaign, body: s.CampaignIn) -> None:
+    """The owner's photo or AI picture becomes the background (the "photo" design); otherwise a ready-made design."""
+    if body.art_id and body.art_id != c.art_id:
+        a = db.get(CampaignArt, body.art_id)
+        if not a or a.business_id != c.business_id or not a.content_type.startswith("image/"):
+            raise HTTPException(422, "Pick a picture (JPG, PNG or WebP), or make one with AI.")
+        a.campaign_id = c.id
+        c.art_id, c.design_style = a.id, "photo"
+    if body.style:
+        if body.style == "photo" and not c.art_id:
+            raise HTTPException(422, "Add a picture first.")
+        c.design_style = body.style
 
 
 @router.get("/templates", response_model=list[s.OfferTemplateOut])
@@ -164,6 +189,12 @@ def update_campaign(cid: int, body: s.CampaignIn, user: User = Depends(current_u
     c.valid_until, c.notes, c.active = body.valid_until, body.notes, body.active
     c.duration_min = body.duration_min or c.duration_min
     c.items = _items(body.items)
+    _picture(db, c, body)
+    if body.draft is False and c.draft:
+        c.draft = False
+        record(db, user.business_id, "campaign_published")
+    if c.draft:
+        c.active = False  # a draft is never public
     db.commit()
     db.refresh(c)
     return campaign_out(db, c)

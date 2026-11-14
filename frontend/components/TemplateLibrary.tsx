@@ -21,6 +21,7 @@ export interface Applied {
   discount?: string;
   minutes?: string;
   notes?: string;
+  image?: string; // description for an AI picture
   from: { code?: string; name: string; category?: string; audience: string[] };
   missing: string[]; // services that need a price
 }
@@ -45,7 +46,7 @@ function rowsFor(m: Matched[]): Row[] {
 export function applyLibrary(t: OfferTemplate, menu: CatalogItem[]): Applied {
   const m = matchServices(t.services, menu, audienceGender(t.audience));
   return {
-    title: t.name, headline: t.headline, description: t.description, rows: rowsFor(m),
+    title: t.name, headline: t.headline, description: t.description, rows: rowsFor(m), image: t.image,
     from: { code: t.code, name: t.name, category: t.category, audience: t.audience },
     missing: m.filter((x) => !x.item && !x.mergedInto).map((x) => x.service),
   };
@@ -56,15 +57,17 @@ export function applyMine(t: MyTemplate): Applied {
   return {
     title: t.name, headline: t.headline ?? "", description: t.description ?? "", rows,
     discount: Number(t.discount) ? String(Number(t.discount)) : undefined, minutes: t.duration_min ? String(t.duration_min) : undefined, notes: t.notes ?? undefined,
+    image: t.image_prompt ?? undefined,
     from: { name: t.name, category: t.category ?? undefined, audience: t.audience },
     missing: rows.filter((r) => !r.unit_price).map((r) => r.description),
   };
 }
 
 /** The strip at the top of "Create the offer": start from a ready-made offer or one of your own. */
-export function TemplateStrip({ menu, applied, onApply, onClear, mine, reloadMine, initial }: {
+export function TemplateStrip({ menu, applied, onApply, onClear, mine, reloadMine, initial, manual, onManual }: {
   menu: CatalogItem[]; applied: Applied | null; onApply: (a: Applied) => void; onClear: () => void;
   mine: MyTemplate[] | null; reloadMine: () => void; initial?: string | null;
+  manual?: boolean; onManual?: () => void; // "Write my own" was chosen
 }) {
   const { business } = useSession();
   const salon = verticalOf(business.business_type) === "salon";
@@ -95,24 +98,44 @@ export function TemplateStrip({ menu, applied, onApply, onClear, mine, reloadMin
         </div>
         <div className="tpl-applied-acts">
           <button type="button" className="btn sm" onClick={() => setOpen(salon ? "all" : "mine")}>Change template</button>
-          <button type="button" className="linkbtn small" onClick={onClear}>Start blank</button>
+          <button type="button" className="linkbtn small" onClick={() => { onClear(); onManual?.(); }}>Write my own instead</button>
         </div>
         <Library open={open} setOpen={setOpen} menu={menu} mine={mine} reloadMine={reloadMine} onApply={onApply} />
       </div>
     );
   }
 
+  const browse = () => setOpen(salon ? "all" : "mine");
+  if (manual) {
+    return (
+      <div className="tpl-applied is-manual" role="status">
+        <span className="tpl-applied-ico" aria-hidden="true">{PEN}</span>
+        <div><b>Writing your own offer</b><span className="small">Fill in the name, services and price below.</span></div>
+        <div className="tpl-applied-acts"><button type="button" className="btn sm" onClick={browse}>Use a template instead</button></div>
+        <Library open={open} setOpen={setOpen} menu={menu} mine={mine} reloadMine={reloadMine} onApply={onApply} />
+      </div>
+    );
+  }
+
   return (
-    <div className="tpl-strip">
-      <div className="tpl-strip-t">
-        <span className="tpl-spark" aria-hidden="true">{SPARK}</span>
-        <div>
-          <b>{salon ? "Start from a ready-made offer" : "Start from one of your templates"}</b>
-          <span className="small muted">{salon ? `${OFFER_TEMPLATES.length} offers for ladies, gentlemen, unisex and bridal. Use one as it is, or as a starting point.` : "Offers you saved before, ready to send again."}</span>
-        </div>
-        <button type="button" className="btn primary" onClick={() => setOpen(salon ? "all" : "mine")}>Browse templates</button>
+    <div className="start-choice">
+      <p className="start-q">How would you like to start?</p>
+      <div className="start-tiles">
+        <button type="button" className="start-tile is-tpl" onClick={browse}>
+          <span className="tpl-spark" aria-hidden="true">{SPARK}</span>
+          <b>{salon ? "Use a ready-made template" : "Use one of my templates"}</b>
+          <span>{salon ? `${OFFER_TEMPLATES.length} offers for ladies, gentlemen, unisex and bridal. Services and prices come from your menu.` : "Offers you saved before, ready to send again."}</span>
+          <em>Browse templates →</em>
+        </button>
+        <button type="button" className="start-tile" onClick={onManual}>
+          <span className="start-pen" aria-hidden="true">{PEN}</span>
+          <b>Write my own</b>
+          <span>Type the offer name, what clients get and the price yourself.</span>
+          <em>Start writing ↓</em>
+        </button>
       </div>
       <div className="tpl-strip-chips">
+        <span className="small muted">Or go straight to:</span>
         {salon && AUDIENCES.map((a) => (
           <button type="button" key={a} className="chip" onClick={() => setOpen(a)}>{a} <span className="mono">{OFFER_TEMPLATES.filter((t) => t.audience.includes(a)).length}</span></button>
         ))}
@@ -123,6 +146,7 @@ export function TemplateStrip({ menu, applied, onApply, onClear, mine, reloadMin
   );
 }
 
+const PEN = <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>;
 const SPARK = <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" /></svg>;
 
 function Library({ open, setOpen, menu, mine, reloadMine, onApply }: {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSession } from "@/components/session";
 import { ErrorBox, Pill, toast } from "@/components/ui";
 import { api, download } from "@/lib/api";
 import { fmtDateTime } from "@/lib/format";
@@ -22,7 +23,8 @@ const FORMATS = [
 ] as const;
 
 /** Post a campaign to the salon's Facebook Page, Instagram and YouTube channel in one go. */
-export function SocialPost({ c, onChange, prefer }: { c: Campaign; onChange?: (c: Campaign) => void; prefer?: string[] }) {
+export function SocialPost({ c, onChange, prefer, editHref }: { c: Campaign; onChange?: (c: Campaign) => void; prefer?: string[]; editHref?: string }) {
+  const { business } = useSession();
   const [st, setSt] = useState<SocialStatus | null>(null);
   const [posts, setPosts] = useState<CampaignPost[] | null>(null);
   const [pick, setPick] = useState<Set<SocialProvider>>(new Set());
@@ -104,8 +106,18 @@ export function SocialPost({ c, onChange, prefer }: { c: Campaign; onChange?: (c
       <ErrorBox error={error} />
       <div className="sp-grid">
         <div className="sp-pic">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={img} alt={`Picture for ${c.title}`} className={`fmt-${fmt}`} />
+          <div className="cprev-top">
+            <span className="cprev-label">Preview</span>
+            {editHref && <Link className="btn sm" href={editHref}>✎ Edit campaign</Link>}
+          </div>
+          <div className="cprev-card sp-card">
+            <div className="cprev-who">
+              <span className="cprev-av">{business.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
+              <span><b>{business.name}</b><small>Sponsored · just now</small></span>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={img} alt={`Picture for ${c.title}`} className={`fmt-${fmt}`} />
+          </div>
           <div className="sp-design">
             <span className="sp-theme">Design from your package{c.theme ? <> · <b>{c.theme}</b></> : null}</span>
             <div className="sp-styles" role="radiogroup" aria-label="Design">
