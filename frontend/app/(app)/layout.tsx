@@ -134,7 +134,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="app" data-vertical={vertical}>
         <aside className="side" aria-label="Main">
           <Link href={isStaff ? "/me" : "/dashboard"} className="side-brand" aria-label={`${site.name} home`}>
-            <BriskMark size={42} tile={vertical === "salon" ? "#fff" : "var(--accent)"} ink={vertical === "salon" ? "var(--side)" : "#fff"} spark="var(--spark, #d4704a)" />
+            <BriskMark size={42} tile={vertical === "salon" ? "#fff" : "var(--accent)"} ink={vertical === "salon" ? "var(--side)" : "#fff"} spark="var(--spark, #964734)" />
             <span>{site.name}</span>
           </Link>
           <nav className="side-nav">

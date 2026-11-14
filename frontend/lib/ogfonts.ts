@@ -18,4 +18,4 @@ export function ogFonts() {
   return cache;
 }
 
-export const OG = { cream: "#f4f2ee", paper: "#fcfbf9", clay: "#c0613f", cocoa: "#1d2330", muted: "#6d7280", sand: "#ddd7ce" };
+export const OG = { cream: "#eaf3f4", paper: "#f8fcfc", clay: "#964734", cocoa: "#003135", muted: "#557073", sand: "#cfe3e6" };
