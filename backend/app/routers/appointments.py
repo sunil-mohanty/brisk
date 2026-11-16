@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from .. import schemas as s
-from .. import staff
+from .. import booking, staff
 from ..activity import UAE, record
 from ..db import get_db
 from ..logic import appointment_out, appointment_url, get_owned, resolve_customer, set_lead_status
@@ -183,7 +183,7 @@ def list_appointments(
     return [_out(user, a) for a in db.scalars(stmt).unique()]
 
 
-@router.post("", response_model=s.AppointmentOut, status_code=201)
+@router.post("", response_model=s.BookedOut, status_code=201)
 def create_appointment(body: s.AppointmentIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     bid = user.business_id
     lead = get_owned(db, Lead, body.lead_id, bid, "Lead") if body.lead_id else None
@@ -232,6 +232,12 @@ def create_appointment(body: s.AppointmentIn, user: User = Depends(current_user)
         address=(body.address or "").strip() or None,
         notes=body.notes,
     )
+    if lead and not quote:  # a lead from an accepted offer: booking it books the offer too
+        quote = db.scalar(select(Quote).where(Quote.lead_id == lead.id, Quote.business_id == bid).order_by(Quote.id.desc()))
+        a.quote_id = quote.id if quote else None
+    if body.notify:
+        a.status = AppointmentStatus.confirmed
+        a.confirmed_at = datetime.now(timezone.utc)
     db.add(a)
     if quote:
         quote.booking_status = "confirmed"
@@ -240,7 +246,14 @@ def create_appointment(body: s.AppointmentIn, user: User = Depends(current_user)
     record(db, bid, "appointment_booked")
     db.commit()
     db.refresh(a)
-    return _out(user, a)
+    sent = None
+    if body.notify:  # the booking confirmation with the time, on WhatsApp (by itself when the API is connected)
+        sent = booking.confirm(db, a)
+        db.commit()
+        db.refresh(a)
+    out = s.BookedOut(**_out(user, a).model_dump())
+    out.confirmation = sent.status if sent else None
+    return out
 
 
 @router.get("/{appointment_id}", response_model=s.AppointmentOut)

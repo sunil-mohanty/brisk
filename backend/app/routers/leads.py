@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session, joinedload
 from .. import schemas as s
 from ..db import get_db
 from ..logic import get_owned, resolve_customer
-from ..models import Appointment, Lead, LeadStatus, User
+from ..models import Appointment, Lead, LeadStatus, Quote, QuoteStatus, User
+from ..utils import quote_label, quote_totals
 from ..security import current_user
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -35,10 +36,22 @@ def _with_bookings(db: Session, business_id: int, leads) -> list[s.LeadOut]:
             .order_by(Appointment.id)
         ).all()
     ) if ids else {}
+    # The offer each lead accepted (campaign or quote), newest first
+    offers: dict[int, Quote] = {}
+    if ids:
+        for q in db.scalars(select(Quote).where(Quote.business_id == business_id, Quote.lead_id.in_(ids)).order_by(Quote.id.desc())):
+            offers.setdefault(q.lead_id, q)
     out = []
     for l in leads:
         o = s.LeadOut.model_validate(l)
         o.appointment_id = booked.get(l.id)
+        q = offers.get(l.id)
+        if q:
+            o.quote_id, o.quote_label = q.id, quote_label(q.number)
+            o.offer = q.reference or " + ".join(i.description for i in q.items)
+            o.offer_total = quote_totals(q.items, q.discount, q.vat_rate).total
+            if q.status == QuoteStatus.accepted:
+                o.accepted_via = "WhatsApp" if "(WhatsApp)" in (l.requirement or "") else "Offer page" if q.kind == "campaign" else "Quote"
         out.append(o)
     return out
 

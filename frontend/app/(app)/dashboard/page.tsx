@@ -44,7 +44,7 @@ export default function TodayPage() {
       <Checklist setup={d.setup} />
       <div className="kpis">
         <Link href="/appointments" className="kpi kpilink"><span>Booked today</span><strong>{live.length}</strong><em>{d.upcoming} in the next 7 days</em></Link>
-        <Link href="/leads" className="kpi kpilink"><span>New enquiries</span><strong>{d.new_leads}</strong><em>{d.new_leads ? "waiting for your reply" : "all answered"}</em></Link>
+        <Link href="/leads" className="kpi kpilink"><span>New leads</span><strong>{d.new_leads}</strong><em>{d.new_leads ? "waiting for your reply" : "all answered"}</em></Link>
         {business.link_page_enabled
           ? <Link href="/link" className="kpi kpilink"><span>Link page visits</span><strong>{d.link_views_7d}</strong><em>{d.link_taps_7d} taps this week</em></Link>
           : <Link href="/quotes" className="kpi kpilink"><span>Awaiting booking</span><strong>{d.awaiting_booking.length}</strong><em>accepted quotes to book in</em></Link>}
@@ -118,7 +118,7 @@ function NewEnquiries() {
   useEffect(() => { api.swr<Lead[]>("/leads?status=new", setLeads).catch(() => setLeads([])); }, []);
   return (
     <section className="panel">
-      <h2>New enquiries <Link href="/leads">All enquiries</Link></h2>
+      <h2>New leads &amp; enquiries <Link href="/leads">See all</Link></h2>
       <div className="list">
         {leads === null ? <Loading /> : leads.length ? leads.slice(0, 6).map((l) => (
           <div className="row" key={l.id}>

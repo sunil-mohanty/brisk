@@ -88,6 +88,7 @@ const WA_STATE: Record<string, [string, string]> = {
  *  Clients book inside WhatsApp; the list shows sent / delivered / read / accepted for each client. */
 function SendWithApi({ campaignId, initialTag, onSent }: { campaignId: number; initialTag?: string | null; onSent?: (n: number) => void }) {
   const [cats] = useCategories();
+  const wa = useWhatsApp();
   const [tag, setTag] = useState<string>(initialTag ?? "");
   const [aud, setAud] = useState<Audience | null>(null);
   const [busy, setBusy] = useState(false);
@@ -120,9 +121,14 @@ function SendWithApi({ campaignId, initialTag, onSent }: { campaignId: number; i
       <ErrorBox error={error} />
       <div className="wa-api-how">
         <span className="wa-api-step"><b>1</b>Clients get the picture with <i>Accept &amp; book</i></span>
-        <span className="wa-api-step"><b>2</b>They pick a day and a time in the chat</span>
-        <span className="wa-api-step"><b>3</b>Booked: it lands in your diary</span>
+        <span className="wa-api-step"><b>2</b>Who accepts lands in <a href="/leads">Leads &amp; Enquiries</a></span>
+        <span className="wa-api-step"><b>3</b>You confirm the time: they get the confirmation</span>
       </div>
+      {wa && rows.some((r) => r.sent_at) && !wa.last_reply_at && (
+        <div className="banner warn" style={{ marginBottom: 12 }}>
+          No replies from WhatsApp have reached Brisk yet. If a client taps <b>Accept &amp; book</b> and nothing shows here, the webhook isn&apos;t connected: Meta → your app → WhatsApp → Configuration → Webhook, then subscribe to <b>messages</b>.
+        </div>
+      )}
       <div className="seg-pick">
         <label>Who
           <select value={tag} onChange={(e) => setTag(e.target.value)}>

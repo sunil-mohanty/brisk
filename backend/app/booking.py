@@ -141,7 +141,7 @@ def try_book(db: Session, q: Quote, day: date, hhmm: str) -> Appointment | None:
     return a
 
 
-def confirm(db: Session, a: Appointment) -> None:
+def confirm(db: Session, a: Appointment):
     """The immediate booking confirmation to the client (automatic when WhatsApp is connected)."""
     c = a.customer if a.customer is not None else None
     first = (c.name.split()[0] if c and c.name else "") or "there"
@@ -149,7 +149,7 @@ def confirm(db: Session, a: Appointment) -> None:
     who = f" with {a.stylist.name}" if a.stylist else ""
     when = when_text(a.starts_at)
     body = f"Hi {first}, your {a.service}{who} at {b.name} is confirmed for {when}. Details and add to calendar: {appointment_url(a)}"
-    whatsapp.send(
+    return whatsapp.send(
         db, business_id=a.business_id, phone=c.phone if c else None, name=c.name if c else None,
         kind="booking_confirmed", body=body, template_params=[first, a.service, when, b.name], appointment_id=a.id,
     )

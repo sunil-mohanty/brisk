@@ -86,6 +86,11 @@ export interface Lead {
   status: LeadStatus;
   created_at: string;
   appointment_id: number | null;
+  quote_id: number | null;
+  quote_label: string | null;
+  offer: string | null;
+  offer_total: string | null;
+  accepted_via: "WhatsApp" | "Offer page" | "Quote" | null;
 }
 
 export interface QR {
@@ -496,7 +501,7 @@ export interface AdminInvite {
 }
 export interface MessageLink { whatsapp_url: string | null; message: string }
 
-export interface WhatsAppStatus { automatic: boolean; quotes: boolean; campaigns?: boolean; webhook: boolean; business_number: string | null }
+export interface WhatsAppStatus { automatic: boolean; quotes: boolean; campaigns?: boolean; webhook: boolean; business_number: string | null; last_reply_at?: string | null }
 export interface WhatsAppSend { status: "sent" | "failed" | "manual"; error: string | null; whatsapp_url: string | null }
 export interface BulkSend { sent: number; failed: number; manual: number }
 

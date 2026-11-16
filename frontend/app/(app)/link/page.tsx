@@ -91,7 +91,7 @@ export default function LinkPageEditor() {
       <PageHead
         eyebrow="For your Instagram, TikTok and Snapchat bio"
         title="Link page"
-        sub="One link with your menu, team, WhatsApp and a booking request form. Requests arrive in Enquiries."
+        sub="One link with your menu, team, WhatsApp and a booking request form. Requests arrive in Leads & Enquiries."
         action={
           <div className="acts">
             <button className="btn" onClick={() => p.url && copyText(p.url)}>Copy link</button>

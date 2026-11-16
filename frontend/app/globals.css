@@ -1934,3 +1934,21 @@ dialog.sheet.wide[open] { display: flex; flex-direction: column; }
 .wa-api-step b { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 12px; }
 .seg-pick .btn.wa { align-self: flex-end; }
 @media (max-width: 760px) { .wa-api-how { grid-template-columns: 1fr; } }
+
+/* Leads & Enquiries */
+.lead-acc { margin-top: 6px; display: inline-block; font-size: 11.5px; }
+tr.lead-hot td:first-child { box-shadow: inset 3px 0 0 var(--accent-bright, var(--accent)); }
+.chip.chip-strong { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.chip.chip-strong[aria-pressed="true"] { color: #fff; }
+/* "Confirm it and send the confirmation" in the booking sheet */
+.checkline.notify-line { flex-direction: row; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); border: 1px solid var(--line-2); cursor: pointer; }
+.checkline.notify-line input { margin-top: 3px; width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+.checkline.notify-line span { display: flex; flex-direction: column; gap: 2px; font-weight: 400; }
+.checkline.notify-line small { color: var(--muted); font-size: 12.5px; }
+@media (max-width: 760px) {
+  /* Lead card: "via Campaign: …" and the Accepted badge wrap instead of running off the card */
+  table.ctable .c-stat.c-first:has(.lead-acc) { flex: 1 1 100%; min-width: 0; white-space: normal; }
+  table.ctable .c-stat.c-first div:has(> .lead-acc) { display: block; }
+  tr.lead-hot td:first-child { box-shadow: none; }
+  table.ctable tr.lead-hot { box-shadow: inset 3px 0 0 var(--accent-bright, var(--accent)); }
+}

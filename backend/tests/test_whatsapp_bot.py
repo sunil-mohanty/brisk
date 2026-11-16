@@ -86,7 +86,7 @@ def test_bad_signature_is_refused(client, wa):
 def test_send_quote_accept_pick_day_and_time_books_it(client, wa):
     h, q = _setup(client)
     st = client.get("/api/whatsapp/status", headers=h).json()
-    assert st == {"automatic": True, "quotes": True, "campaigns": False, "webhook": True, "business_number": "+971500000000"}
+    assert st == {"automatic": True, "quotes": True, "campaigns": False, "webhook": True, "business_number": "+971500000000", "last_reply_at": None}
 
     r = client.post(f"/api/quotes/{q['id']}/whatsapp", headers=h).json()
     assert r["status"] == "sent"
@@ -172,10 +172,13 @@ def test_campaign_accepted_on_whatsapp(client, wa):
     assert client.get(f"/api/public/c/{c['token']}").json()["whatsapp_accept_url"] == c["whatsapp_accept_url"]
 
     _hook(client, [_text(f'Hi! I\'d like to accept the offer "Bridal glow" from Layla Beauty Lounge (code {c["token"]})')], name="Hessa M")
-    assert "is accepted" in wa[-1]["interactive"]["body"]["text"]
+    assert wa[-1]["text"]["body"].startswith("Thanks for accepting the offer")
     quotes = client.get("/api/quotes?kind=campaign", headers=h).json()
     assert len(quotes) == 1 and quotes[0]["customer"]["name"] == "Hessa M" and quotes[0]["customer"]["phone"] == "+971551112233"
     assert quotes[0]["status"] == "accepted" and quotes[0]["booking_status"] == "awaiting"
+    # Sending the code again doesn't make a second one
+    _hook(client, [_text(f'accept (code {c["token"]})')], name="Hessa M")
+    assert len(client.get("/api/quotes?kind=campaign", headers=h).json()) == 1 and "We have your acceptance" in wa[-1]["text"]["body"]
 
 
 def test_without_whatsapp_send_falls_back_to_link(client):
@@ -193,7 +196,7 @@ def test_bulk_send(client, wa):
     assert {p["to"] for p in wa} == {CLIENT, "971509998877"}
 
 
-def test_campaign_sent_on_whatsapp_and_booked_in_chat(client, wa, monkeypatch):
+def test_campaign_sent_on_whatsapp_accepted_then_booked_by_salon(client, wa, monkeypatch):
     monkeypatch.setattr(get_settings(), "whatsapp_campaign_template", "campaign_offer")
     h = signup(client)
     client.patch("/api/business", json={"open_time": "10:00", "close_time": "20:00", "closed_days": ""}, headers=h)
@@ -226,21 +229,41 @@ def test_campaign_sent_on_whatsapp_and_booked_in_chat(client, wa, monkeypatch):
     row = next(x for x in aud["rows"] if x["customer_id"] == sara["id"])
     assert row["wa_status"] == "sent" and row["sent_at"] and aud["sent"] == 2
 
-    # Sara taps Accept & book → her own accepted quote and a list of days, all inside WhatsApp
+    # Sara taps Accept & book → her accepted quote, a New lead and the thank-you message (no booking yet)
     _hook(client, [_button(accept)])
-    days = _rows(wa[-1])
-    assert "is yours" in wa[-1]["interactive"]["body"]["text"] and days[0].startswith("day:")
-    _hook(client, [_list(days[0])])
-    slot = next(x for x in _rows(wa[-1]) if x.startswith("slot:"))
-    _hook(client, [_list(slot)])
+    assert wa[-1]["text"]["body"].startswith("Thanks for accepting the offer, we are working on your booking")
     quotes = client.get("/api/quotes?kind=campaign", headers=h).json()
     assert len(quotes) == 1 and quotes[0]["customer"]["id"] == sara["id"]
-    assert quotes[0]["status"] == "accepted" and quotes[0]["booking_status"] == "confirmed"
-    # Tapping Accept again doesn't make a second quote
-    _hook(client, [_button(accept)])
-    assert len(client.get("/api/quotes?kind=campaign", headers=h).json()) == 1 and "booked" in wa[-1]["text"]["body"]
+    assert quotes[0]["status"] == "accepted" and quotes[0]["booking_status"] == "awaiting"
+    assert next(x for x in client.get("/api/campaigns", headers=h).json() if x["id"] == c["id"])["accepted"] == 1
+    lead = next(l for l in client.get("/api/leads", headers=h).json() if l["customer"]["id"] == sara["id"])
+    assert lead["status"] == "new" and lead["accepted_via"] == "WhatsApp" and lead["quote_id"] == quotes[0]["id"]
+    assert lead["offer"] == "Facial & Foot Reflexology" and lead["offer_total"]
     aud = client.get(f"/api/campaigns/{c['id']}/audience?tag=VIP", headers=h).json()
     assert next(x for x in aud["rows"] if x["customer_id"] == sara["id"])["accepted"] is True
+    # Tapping again: no second quote, a polite "we have it"
+    _hook(client, [_button(accept)])
+    assert len(client.get("/api/quotes?kind=campaign", headers=h).json()) == 1 and "We have your acceptance" in wa[-1]["text"]["body"]
+
+    # The salon books it from the lead → appointment confirmed, lead Booked, quote booked, confirmation on WhatsApp
+    n = len(wa)
+    tomorrow = (datetime.now(UAE) + timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
+    r = client.post("/api/appointments", json={"lead_id": lead["id"], "service": "Classic facial", "starts_at": tomorrow.isoformat(),
+                                               "duration_min": 60, "price": 250, "notify": True}, headers=h)
+    assert r.status_code == 201, r.text
+    ap = r.json()
+    assert ap["status"] == "confirmed" and ap["confirmation"] == "sent"
+    conf = wa[n:]
+    assert len(conf) == 1 and conf[0]["to"] == CLIENT and conf[0]["template"]["name"] == "booking_confirmed"
+    assert [x["text"] for x in conf[0]["template"]["components"][0]["parameters"]][1] == "Classic facial"
+    assert client.get(f"/api/quotes/{quotes[0]['id']}", headers=h).json()["booking_status"] == "confirmed"
+    assert next(l for l in client.get("/api/leads", headers=h).json() if l["id"] == lead["id"])["status"] == "won"
+    _hook(client, [_button(accept)])
+    assert "already booked for" in wa[-1]["text"]["body"]
+    # Booking without notify sends nothing
+    n = len(wa)
+    client.post("/api/appointments", json={"name": "Walk in", "phone": "050 777 6655", "service": "Cut", "starts_at": (tomorrow + timedelta(hours=2)).isoformat()}, headers=h)
+    assert len(wa) == n
 
     # Noor: Not interested, then Stop offers → skipped next time; START brings her back
     noor_ref = next(p for p in tpl if p["to"] == "971509998877")["template"]["components"][4]["parameters"][0]["payload"]

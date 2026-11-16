@@ -301,6 +301,12 @@ class LeadOut(ORM):
     status: LeadStatus
     created_at: datetime
     appointment_id: int | None = None
+    # The offer they accepted (a campaign or a quote), when the lead came from one
+    quote_id: int | None = None
+    quote_label: str | None = None
+    offer: str | None = None
+    offer_total: Decimal | None = None
+    accepted_via: str | None = None  # "WhatsApp" | "Offer page"
 
 
 # ---------- QR ----------
@@ -881,6 +887,7 @@ class AppointmentIn(CustomerRef):
     notes: str | None = None
     force: bool = False  # book even if the stylist is already busy
     auto_assign: bool = False  # no stylist chosen: give it to the best free person
+    notify: bool = False  # confirmed now: send the client the booking confirmation on WhatsApp
 
 
 class AppointmentUpdate(BaseModel):
@@ -923,6 +930,10 @@ class AppointmentOut(BaseModel):
     confirmed_at: datetime | None
     reminded_at: datetime | None
     created_at: datetime
+
+
+class BookedOut(AppointmentOut):
+    confirmation: str | None = None  # sent | failed | manual: the WhatsApp booking confirmation
 
 
 class MessageLinkOut(BaseModel):
@@ -1210,6 +1221,7 @@ class WhatsAppStatus(BaseModel):
     automatic: bool  # booking confirmations go out by themselves
     quotes: bool  # quotes go out with Accept / Decline buttons
     campaigns: bool = False  # campaigns go out to many clients with Accept & book buttons
+    last_reply_at: datetime | None = None  # last tap or message from a client (shows the webhook works)
     webhook: bool  # replies from clients are handled (verify token set)
     business_number: str | None = None
 

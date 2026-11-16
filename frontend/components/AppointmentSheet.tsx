@@ -11,6 +11,7 @@ import { api, ApiError } from "@/lib/api";
 import { addDays, atUAE, fmtDayLong, fmtTime, money, todayUAE, uaeDate, uaeTime } from "@/lib/format";
 import type { Availability, Appointment, AppointmentStatus, CatalogItem, CustomerRef, MessageLink, Stylist } from "@/lib/types";
 import { duration, vocab } from "@/lib/vocab";
+import { useWhatsApp } from "@/lib/whatsapp";
 
 export const STATUS_LABEL: Record<AppointmentStatus, string> = {
   booked: "Booked", confirmed: "Confirmed", arrived: "In the chair", completed: "Finished", no_show: "No-show", cancelled: "Cancelled",
@@ -66,6 +67,9 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
   const editing = !!appt;
   const pickAnyone = (user.permissions ?? []).includes("diary_all");
   const [ref, setRef] = useState<CustomerRef>({});
+  const wa = useWhatsApp();
+  // A new booking is confirmed straight away and the client gets the confirmation with the time on WhatsApp
+  const [notify, setNotify] = useState(true);
   const [f, setF] = useState(() => ({
     service: appt?.service ?? preset?.service ?? "",
     date: appt ? uaeDate(appt.starts_at) : preset?.date ?? todayUAE(),
@@ -103,13 +107,16 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
   useEffect(() => {
     if (seeded.current || editing || !menu.length || !f.service) return;
     seeded.current = true;
-    const wanted = f.service.split(/,\s*|\s+\+\s+/).map((x) => x.trim().toLowerCase());
+    const parts = f.service.split(/,\s*|\s+\+\s+/).map((x) => x.trim()).filter(Boolean);
+    const wanted = parts.map((x) => x.toLowerCase());
     const chosen = menu.filter((m) => wanted.includes(m.name.toLowerCase()));
     if (!chosen.length) return;
+    // Services that aren't on the menu (e.g. from an offer) stay in the booking too
+    const others = parts.filter((x) => !chosen.some((m) => m.name.toLowerCase() === x.toLowerCase()));
     setPicked(chosen.map((m) => m.name));
     setF((x) => ({
       ...x,
-      service: chosen.map((m) => m.name).join(" + "),
+      service: [...chosen.map((m) => m.name), ...others].join(" + "),
       price: x.price || String(chosen.reduce((a, m) => a + Number(m.unit_price), 0)),
       duration: preset?.durationMin ?? (chosen.reduce((a, m) => a + (m.duration_min ?? 0), 0) || x.duration),
     }));
@@ -150,16 +157,28 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
       notes: f.notes.trim() || null,
       force,
     };
+    // Without the WhatsApp API the confirmation opens in WhatsApp: open the tab inside the click so it isn't blocked
+    const manual = !editing && notify && !wa?.automatic ? window.open("about:blank", "_blank") : null;
     try {
       const a = editing
         ? await api.patch<Appointment>(`/appointments/${appt!.id}`, body)
-        : await api.post<Appointment>("/appointments", {
-            ...body,
+        : await api.post<Appointment & { confirmation?: string | null }>("/appointments", {
+            ...body, notify,
             ...(preset?.leadId ? { lead_id: preset.leadId } : preset?.quoteId ? { quote_id: preset.quoteId } : ref),
           });
-      toast(editing ? `${W.Appointment} moved` : `Booked: ${a.customer.name}, ${fmtTime(a.starts_at)}`);
+      const sent = (a as { confirmation?: string | null }).confirmation;
+      if (manual) {
+        const r = await api.post<MessageLink>(`/appointments/${a.id}/message?kind=confirm`);
+        if (r.whatsapp_url) manual.location.href = r.whatsapp_url;
+        else { manual.close(); await copyText(r.message); }
+      }
+      toast(editing ? `${W.Appointment} moved`
+        : sent === "sent" ? `Booked: ${a.customer.name}, ${fmtTime(a.starts_at)}. Confirmation sent on WhatsApp ✓`
+        : sent === "failed" ? `Booked, but the WhatsApp confirmation didn't arrive. Send it again from the booking.`
+        : `Booked: ${a.customer.name}, ${fmtTime(a.starts_at)}`);
       onSaved(a);
     } catch (e) {
+      manual?.close();
       if (e instanceof ApiError && e.code === "clash") setClash(e.message);
       else setError((e as Error).message);
     }
@@ -228,6 +247,13 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
           </div>
         </div>
         {f.location === "home" && <label className="full">{W.vertical === "real_estate" ? "Property address / unit" : "Client's address"}<input id="ap-address" value={f.address} onChange={(e) => set("address", e.target.value)} placeholder={v.refPlaceholder} /></label>}
+        {!editing && (
+          <label className="full checkline notify-line">
+            <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+            <span><b>Confirm it and send the client the booking confirmation on WhatsApp</b>
+              <small>{wa?.automatic ? "Goes out by itself from your WhatsApp Business number, with the day and time." : "Opens WhatsApp with the confirmation ready to send."}</small></span>
+          </label>
+        )}
         <label className="full">Notes <textarea id="ap-notes" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={W.vertical === "real_estate" ? "Keys with security, parking, documents to bring…" : "Anything to prepare, allergies to products, patch test done…"} /></label>
       </div>
       {clash && (
@@ -238,7 +264,7 @@ function BookForm({ preset, appt, onClose, onSaved }: { preset?: NewPreset; appt
       )}
       <div className="foot">
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={() => save(false)} disabled={busy}>{busy ? "Saving…" : editing ? "Save new time" : `Book ${W.appointment}`}</button>
+        <button className="btn primary" onClick={() => save(false)} disabled={busy}>{busy ? "Saving…" : editing ? "Save new time" : notify ? "Confirm booking" : `Book ${W.appointment}`}</button>
       </div>
     </>
   );

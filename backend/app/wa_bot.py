@@ -8,8 +8,9 @@ Flow (all ids travel inside button / list-row ids, so no conversation state is s
   time row       slot:<token>:<YYYY-MM-DD>:<HHMM> → booked if still free → "Accepted · Booking confirmed"
                                                    taken → new list of times for that day
   later row      later:<token>                  → "Accepted · Awaiting booking" (salon confirms the time)
-  "Accept on WhatsApp" from a campaign: the client sends "... (code ABCD123456)" → own quote, accepted → days list
-  campaign template ──[Accept & book]─► cacc:<campaign token>:<client id> → own quote, accepted → days list → time → booked
+  "Accept on WhatsApp" from a campaign: the client sends "... (code ABCD123456)" → own quote, accepted, a New lead → thanks
+  campaign template ──[Accept & book]─► cacc:<campaign token>:<client id> → own quote, accepted, a New lead → thanks
+                    (the salon books it from Leads & Enquiries; the booking confirmation with the time goes out then)
                     ──[Not interested]► cno:<campaign token>:<client id>  → a polite reply
                     ──[Stop offers]───► cstop:<campaign token>:<client id> → no more campaigns to that client (START undoes)
   "accept" / "yes" / "book" typed by hand       → the latest quote we sent to that number
@@ -25,7 +26,8 @@ from sqlalchemy.orm import Session
 from . import booking, whatsapp
 from .activity import UAE, record
 from .logic import quote_url
-from .models import Business, Campaign, Customer, OutboundMessage, Quote, QuoteStatus, WhatsAppInbound
+from .booking import when_text
+from .models import Appointment, Business, Campaign, Customer, OutboundMessage, Quote, QuoteStatus, WhatsAppInbound
 from .utils import is_expired, normalize_phone, quote_label, quote_totals, valid_until
 
 log = logging.getLogger("salon.wa_bot")
@@ -209,11 +211,36 @@ def _campaign(db: Session, code: str, to: str, name: str | None) -> bool:
         whatsapp.reply_text(db, business_id=c.business_id, to=to,
                             body=f"Sorry, the offer \"{c.title}\" has ended. Message {c.business.name} for current prices.")
         return True
-    q = create_campaign_quote(db, c, name or "WhatsApp client", "+" + to)
-    db.flush()
-    db.refresh(q)
-    offer_days(db, q, to, f"Thank you! Your offer \"{c.title}\" at {c.business.name} is accepted ✅ (quote {quote_label(q.number)})")
+    from .logic import find_customer_by_phone
+
+    cu = find_customer_by_phone(db, c.business_id, "+" + to)
+    q = cu and db.scalar(select(Quote).where(Quote.campaign_id == c.id, Quote.customer_id == cu.id).order_by(Quote.id.desc()))
+    if q:
+        _already(db, c, q, to)
+        return True
+    create_campaign_quote(db, c, name or "WhatsApp client", "+" + to, via="WhatsApp")
+    _thanks(db, c, to)
     return True
+
+
+# What the client hears right after accepting a campaign. The salon then calls or messages them, books the visit
+# in Brisk (Leads & Enquiries → Confirm booking), and the booking confirmation with the time goes out by itself.
+THANKS = "Thanks for accepting the offer, we are working on your booking and we will revert you shortly."
+
+
+def _thanks(db: Session, c: Campaign, to: str) -> None:
+    whatsapp.reply_text(db, business_id=c.business_id, to=to, body=f"{THANKS}\n\n{c.business.name}")
+
+
+def _already(db: Session, c: Campaign, q: Quote, to: str) -> None:
+    """They tapped Accept again."""
+    if q.booking_status == "confirmed":
+        a = db.scalar(select(Appointment).where(Appointment.quote_id == q.id).order_by(Appointment.id.desc()))
+        when = f" for {when_text(a.starts_at)}" if a else ""
+        body = f"You're already booked{when} ✅ See you at {c.business.name}!"
+    else:
+        body = f"We have your acceptance for \"{c.title}\" ✅ {c.business.name} will get back to you shortly to fix your time."
+    whatsapp.reply_text(db, business_id=c.business_id, to=to, body=body)
 
 
 def _campaign_client(db: Session, parts: list[str], to: str) -> tuple[Campaign, Customer] | None:
@@ -247,19 +274,17 @@ def _campaign_button(db: Session, kind: str, parts: list[str], to: str, name: st
         record(db, c.business_id, "campaign_not_interested", c.title)
         whatsapp.reply_text(db, business_id=c.business_id, to=to, body=f"No problem, thank you for letting us know. {salon} 💐")
         return True
-    # Accept & book: their own accepted quote for this offer (once), then the free days
+    # Accept & book: their own accepted quote for this offer (once) and a lead for the salon to book
     q = db.scalar(select(Quote).where(Quote.campaign_id == c.id, Quote.customer_id == cu.id).order_by(Quote.id.desc()))
     if q:
-        _accept(db, q, to)
+        _already(db, c, q, to)
         return True
     if not c.active or campaign_expired(c):
         whatsapp.reply_text(db, business_id=c.business_id, to=to,
                             body=f"Sorry, the offer \"{c.title}\" has ended. Message {salon} for current prices.")
         return True
-    q = create_campaign_quote(db, c, cu.name or name or "WhatsApp client", cu.phone or "+" + to)
-    db.flush()
-    db.refresh(q)
-    offer_days(db, q, to, f"Wonderful! \"{c.title}\" at {salon} is yours ✅ Now choose a day for your visit.")
+    create_campaign_quote(db, c, cu.name or name or "WhatsApp client", cu.phone or "+" + to, via="WhatsApp")
+    _thanks(db, c, to)
     return True
 
 

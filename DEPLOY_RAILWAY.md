@@ -242,7 +242,9 @@ fal.ai: sign up at fal.ai, add a few dollars of credit, create a key. Prices cha
 - Picking a free time books it → *Accepted · Booking confirmed*, it appears in Appointments, and the confirmation arrives in the chat.
 - **Book later** (or the time was just taken and they give up) → *Accepted · Awaiting booking*; it shows on Today for you to arrange.
 - **Campaigns → WhatsApp to clients → Send to N clients** sends the campaign picture to a category (or everyone) with
-  **Accept & book**, **Not interested** and **Stop offers**. Accept & book → pick a day → pick a time → booked, all in the chat.
+  **Accept & book**, **Not interested** and **Stop offers**. Accept & book → the client is thanked in the chat and appears in
+  **Leads & Enquiries** (Accepted on WhatsApp). The salon talks to them, presses **Confirm booking**, and the
+  `booking_confirmed` message with the day and time goes out by itself.
   Clients who tap Stop offers (or type STOP) get no more campaigns; START turns them back on. The list shows Sent /
   Delivered / Read / Accepted per client.
 - Campaigns get an **Accept on WhatsApp** link (offer page, caption, ads). The client presses send on a pre-filled message, the bot creates their accepted quote and offers times.

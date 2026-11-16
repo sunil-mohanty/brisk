@@ -71,8 +71,7 @@ export function CampaignPreview({ c, as = "post", editHref, onEdit, compact }: {
                   <span>Accept &amp; book</span><span>Not interested</span><span>Stop offers</span>
                 </div>
                 <div className="cprev-bubble out"><p>Accept &amp; book</p><time>now ✓✓</time></div>
-                <div className="cprev-bubble in"><p>Wonderful! &quot;{c.title}&quot; at {name} is yours ✅ Now choose a day for your visit.</p>
-                  <span className="cprev-list">☰ Choose a day</span></div>
+                <div className="cprev-bubble in"><p>Thanks for accepting the offer, we are working on your booking and we will revert you shortly.{"\n\n"}{name}</p><time>now</time></div>
               </div>
             ) : (
             <div className="cprev-bubble">
@@ -86,7 +85,7 @@ export function CampaignPreview({ c, as = "post", editHref, onEdit, compact }: {
             )}
           </div>
           <p className="small muted cprev-note">{api
-            ? "Each client sees their own first name. They tap Accept & book, pick a day and a time, and get the confirmation, all inside WhatsApp."
+            ? "Each client sees their own first name. When they tap Accept & book, they're thanked in the chat and appear in Leads & Enquiries for you to confirm their time."
             : "Each client sees their own first name. The link opens the offer, where they accept and book."}</p>
         </div>
       )}

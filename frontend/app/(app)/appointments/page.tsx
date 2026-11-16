@@ -89,7 +89,11 @@ function Calendar() {
     if (lead) {
       api.get<Lead[]>("/leads").then((ls) => {
         const l = ls.find((x) => String(x.id) === lead);
-        if (l) setSheet({ kind: "new", preset: { leadId: l.id, customerId: l.customer.id, service: l.service_interest ?? "", date: l.preferred_date ?? undefined, notes: l.requirement ?? "", title: `Book ${l.customer.name.split(" ")[0]}` } });
+        if (l) setSheet({ kind: "new", preset: {
+          leadId: l.id, customerId: l.customer.id, service: l.service_interest ?? "", date: l.preferred_date ?? undefined, notes: l.requirement ?? "",
+          ...(l.offer_total ? { price: String(Number(l.offer_total)) } : {}),
+          title: l.quote_id ? `Confirm ${l.customer.name.split(" ")[0]}'s booking` : `Book ${l.customer.name.split(" ")[0]}`,
+        } });
       });
     } else if (quote) {
       api.get<Quote>(`/quotes/${quote}`).then((q) => setSheet({ kind: "new", preset: {

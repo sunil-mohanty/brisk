@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
@@ -8,6 +9,15 @@ from .security import manager_writes, require_campaigns, require_manager, requir
 from .db import Base, engine
 from .timing import TimingMiddleware
 from .routers import admin, appointments, auth, campaigns, catalog, customers, dashboard, inventory, leads, linkpage, media, messages, public, qr, quotes, services, social, staff_routes, team, whatsapp_hook
+
+
+# Our own log lines (WhatsApp webhook calls, sends, failures) show in the Railway logs; libraries stay quiet.
+_h = logging.StreamHandler()
+_h.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+_salon = logging.getLogger("salon")
+if not _salon.handlers:
+    _salon.addHandler(_h)
+    _salon.setLevel(logging.INFO)
 
 
 @asynccontextmanager

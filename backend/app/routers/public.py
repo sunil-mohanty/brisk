@@ -598,16 +598,18 @@ def campaign_slots(token: str, day: date = Query(), db: Session = Depends(get_db
     return s.SlotsOut(day=day, duration_min=c.duration_min, slots=booking.free_slots(db, c.business, day, c.duration_min, " + ".join(i.description for i in c.items)))
 
 
-def create_campaign_quote(db: Session, c: Campaign, name: str, phone: str) -> Quote:
-    """The client's own accepted quote for a campaign offer (from the offer page or WhatsApp)."""
+def create_campaign_quote(db: Session, c: Campaign, name: str, phone: str, via: str = "Offer page") -> Quote:
+    """The client's own accepted quote for a campaign offer (from the offer page or WhatsApp).
+    It also lands in Leads & Enquiries as a New lead, until the salon books it."""
     b = c.business
     customer = find_customer_by_phone(db, b.id, phone)
     if not customer:
         customer = Customer(business_id=b.id, name=name, phone=phone)
         db.add(customer)
         db.flush()
-    lead = Lead(business_id=b.id, customer_id=customer.id, source=f"Campaign: {c.title}"[:80], service_interest=c.title[:300],
-                status=LeadStatus.won)
+    lead = Lead(business_id=b.id, customer_id=customer.id, source=f"Campaign: {c.title}"[:80],
+                service_interest=" + ".join(i.description for i in c.items)[:300] or c.title[:300],
+                requirement=f"Accepted the offer \"{c.title}\" ({via})."[:2000], status=LeadStatus.new)
     db.add(lead)
     biz = db.scalar(select(Business).where(Business.id == b.id).with_for_update())
     qt = new_token(10)
