@@ -1953,3 +1953,71 @@ tr.lead-hot td:first-child { box-shadow: inset 3px 0 0 var(--accent-bright, var(
   table.ctable tr.lead-hot { box-shadow: inset 3px 0 0 var(--accent-bright, var(--accent)); }
 }
 .wa-why { margin-top: 4px; font-size: 12.5px; color: var(--rust, #9a4b2c); max-width: 520px; line-height: 1.4; }
+
+/* ---------- The salon's brand on top, "Powered by Brisk" below ---------- */
+.side-brand { gap: 12px; align-items: center; }
+.side-logo { width: 46px; height: 46px; border-radius: 14px; object-fit: cover; background: #fff; flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .18), 0 8px 18px -10px rgba(0, 0, 0, .5); }
+.side-logo-i { display: grid; place-items: center; background: linear-gradient(140deg, var(--accent-bright, var(--accent)), var(--accent)); color: #fff; font: 400 22px/1 var(--display); }
+.side-brand-t { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.side-brand-t b { font: 400 20px/1.15 var(--display); color: #fff; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.side-brand-t small { font: 500 12px/1.25 "Hanken Grotesk", system-ui, sans-serif; color: var(--side-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-powered { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 10px; padding: 6px; color: var(--side-label); font-size: 11.5px; text-decoration: none; letter-spacing: .02em; opacity: .85; }
+.side-powered:hover { opacity: 1; color: var(--side-fg); }
+.side-powered b { font-weight: 600; color: var(--side-fg); }
+.side-powered svg { width: 18px; height: 18px; border-radius: 5px; }
+.side-group a { position: relative; }
+.side-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--rust, #c0563a); color: #fff; font: 700 11.5px/20px "Hanken Grotesk", system-ui, sans-serif; font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--side); }
+
+/* ---------- Rounded side panel and page header (desktop) ---------- */
+@media (min-width: 901px) {
+  .app { grid-template-columns: 264px minmax(0, 1fr); }
+  .app .side { margin: 14px 0 14px 14px; top: 14px; height: calc(100vh - 28px); border-radius: 26px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 24px 50px -30px rgba(0, 49, 53, .6); }
+  .app .side-group a { margin: 0 10px; padding-left: 14px; padding-right: 12px; border-radius: 12px; border-left: 0; }
+  .app .side-group a[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent-bright, var(--accent)), inset 0 1px 0 rgba(255, 255, 255, .1); }
+  .app .side-label { padding-left: 24px; }
+  .app .side-foot { border-top: 0; padding-top: 10px; }
+  .app .head { margin: 14px -14px 26px; padding: 20px 26px; top: 14px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, .75); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 0 0 1px var(--glass-edge), 0 18px 40px -28px rgba(0, 49, 53, .35); }
+  main.page { padding-left: 28px; padding-right: 28px; }
+}
+
+/* ---------- Leads: the latest WhatsApp message ---------- */
+.lead-msg { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-top: 6px; max-width: 100%; padding: 7px 10px; border-radius: 12px; background: #e7f6ec; color: #1f5134; font-size: 13px; }
+.lead-msg:hover { background: #d9f0e1; }
+.lead-msg-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lead-msg em { flex: none; margin-left: auto; font-style: normal; font-weight: 700; font-size: 11.5px; background: var(--wa, #25a35a); color: #fff; padding: 2px 8px; border-radius: 999px; }
+.lead-msg.unread { font-weight: 600; box-shadow: 0 0 0 1.5px var(--wa, #25a35a); }
+
+/* ---------- Leads: WhatsApp chat ---------- */
+.chat { display: flex; flex-direction: column; height: min(720px, calc(100dvh - 60px)); width: min(560px, calc(100vw - 32px)); margin: -4px; }
+.chat-h { display: flex; align-items: center; gap: 12px; padding: 4px 4px 12px; border-bottom: 1px solid var(--line); }
+.chat-h > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-h h2 { margin: 0; font: 400 22px/1.15 var(--display); }
+.chat-av { width: 42px; height: 42px; border-radius: 50%; background: var(--wa, #25a35a); color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
+.chat-body { flex: 1; overflow-y: auto; padding: 14px 6px; background: #efe7dd; border-radius: 14px; margin: 12px 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-day { align-self: center; margin: 8px auto; width: fit-content; background: rgba(255, 255, 255, .85); color: #54656f; font-size: 11.5px; padding: 3px 10px; border-radius: 8px; }
+.chat-msg { max-width: 82%; margin: 3px 8px; padding: 7px 10px 5px; border-radius: 12px; box-shadow: 0 1px 1px rgba(0, 0, 0, .08); font-size: 14px; line-height: 1.42; width: fit-content; }
+.chat-msg.in { background: #fff; border-top-left-radius: 4px; }
+.chat-msg.out { background: #d9fdd3; margin-left: auto; border-top-right-radius: 4px; }
+.chat-msg.failed { background: #fbe4dc; }
+.chat-msg p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+.chat-who { display: block; font-size: 11px; font-weight: 700; color: #1f7a4d; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .04em; }
+.chat-msg time { display: block; text-align: right; font-size: 11px; color: #667781; margin-top: 2px; }
+.chat-msg time b { font-weight: 600; letter-spacing: -2px; margin-left: 3px; }
+.chat-msg time b.read { color: #34a3dc; }
+.chat-msg .wa-why { display: block; margin-top: 4px; }
+.chat-send { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.chat-send textarea { resize: none; min-height: 46px; }
+.chat-send .btn { height: 46px; }
+.chat-hint { grid-column: 1 / -1; }
+.chat-err { grid-column: 1 / -1; color: var(--bad, #b3261e); font-size: 13px; margin: 0; }
+.chat-off { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); font-size: 13.5px; }
+
+/* ---------- Settings: logo ---------- */
+.logo-panel { display: flex; gap: 18px; align-items: center; }
+.logo-prev { width: 84px; height: 84px; border-radius: 20px; overflow: hidden; flex: none; background: var(--side); display: grid; place-items: center; box-shadow: 0 0 0 1px var(--line); }
+.logo-prev img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.logo-prev span { color: #fff; font: 400 34px var(--display); }
+@media (max-width: 760px) {
+  .chat { height: calc(100dvh - 40px); width: auto; }
+  .logo-panel { align-items: flex-start; }
+}

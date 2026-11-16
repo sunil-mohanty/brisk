@@ -124,6 +124,18 @@ class Business(Base):
     client_categories: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     # The owner's own campaign templates (saved from New campaign), newest first.
     offer_templates: Mapped[list[dict]] = mapped_column(JSON, default=list, server_default="[]")
+    # The salon's logo (top of the app, link page). Deferred: only loaded when the logo itself is asked for.
+    logo: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    logo_type: Mapped[str | None] = mapped_column(String(40))
+    logo_version: Mapped[str | None] = mapped_column(String(16))
+    # WhatsApp: the automatic reply when a client writes first; and whether new chats on the
+    # Business number belong to this salon (when the number isn't tied to a client already)
+    wa_auto_reply: Mapped[str | None] = mapped_column(Text)
+    wa_home: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+    @property
+    def logo_url(self) -> str | None:
+        return f"/api/public/logo/{self.id}?v={self.logo_version}" if self.logo_version else None
     admin_note: Mapped[str | None] = mapped_column(Text)
     invite_code_id: Mapped[int | None] = mapped_column(ForeignKey("invite_codes.id", ondelete="SET NULL"))
     last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -222,6 +234,7 @@ class Lead(Base):
     status: Mapped[LeadStatus] = mapped_column(_enum(LeadStatus), default=LeadStatus.new, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    chat_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # owner last opened the WhatsApp chat
 
     customer: Mapped[Customer] = relationship(back_populates="leads")
 
@@ -650,7 +663,8 @@ class WhatsAppInbound(Base):
     from_phone: Mapped[str] = mapped_column(String(40), index=True)
     kind: Mapped[str] = mapped_column(String(30))  # button | list | text | other
     payload: Mapped[str | None] = mapped_column(String(500))
-    business_id: Mapped[int | None] = mapped_column(ForeignKey("businesses.id", ondelete="SET NULL"))
+    body: Mapped[str | None] = mapped_column(Text)  # the full text the client wrote (for the chat in Leads)
+    business_id: Mapped[int | None] = mapped_column(ForeignKey("businesses.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 

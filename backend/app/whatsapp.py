@@ -159,9 +159,10 @@ def send_campaign(db: Session, *, business_id: int, campaign_id: int, campaign_t
 
 
 # ---------- replies inside a conversation the client started (no template needed) ----------
-def reply_text(db: Session, *, business_id: int | None, to: str, body: str, quote_id: int | None = None) -> OutboundMessage | None:
+def reply_text(db: Session, *, business_id: int | None, to: str, body: str, quote_id: int | None = None,
+               kind: str = "bot") -> OutboundMessage | None:
     payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": body[:4096], "preview_url": True}}
-    return _reply(db, payload, business_id, to, body, quote_id)
+    return _reply(db, payload, business_id, to, body, quote_id, kind)
 
 
 def reply_list(db: Session, *, business_id: int | None, to: str, body: str, button: str, rows: list[dict],
@@ -197,13 +198,14 @@ def reply_buttons(db: Session, *, business_id: int | None, to: str, body: str, b
     return _reply(db, payload, business_id, to, body, quote_id)
 
 
-def _reply(db: Session, payload: dict, business_id: int | None, to: str, body: str, quote_id: int | None) -> OutboundMessage | None:
+def _reply(db: Session, payload: dict, business_id: int | None, to: str, body: str, quote_id: int | None,
+           kind: str = "bot") -> OutboundMessage | None:
     if not automatic():
         return None
     if business_id is None:  # not tied to a salon (e.g. "I don't understand"): send, don't log
         _post(payload)
         return None
-    return _record(db, payload, business_id=business_id, quote_id=quote_id, to_phone="+" + to, to_name=None, kind="bot", body=body)
+    return _record(db, payload, business_id=business_id, quote_id=quote_id, to_phone="+" + to, to_name=None, kind=kind, body=body)
 
 
 def accept_link(text: str) -> str | None:

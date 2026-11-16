@@ -64,6 +64,8 @@ class BusinessOut(ORM):
     slug: str | None = None
     link_page_enabled: bool = False
     campaigns_enabled: bool = True  # the Campaigns add-on
+    logo_url: str | None = None  # /api/public/logo/<id>?v=… when the salon uploaded one
+    wa_auto_reply: str | None = None
     open_time: str = "10:00"
     close_time: str = "22:00"
     closed_days: str = ""
@@ -83,6 +85,7 @@ class BusinessUpdate(BaseModel):
     open_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     close_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$|^24:00$")
     closed_days: str | None = Field(default=None, pattern=r"^([0-6](,[0-6])*)?$")
+    wa_auto_reply: str | None = Field(default=None, max_length=1000)  # empty: "Thanks for contacting <salon>…"
 
 
 class ForgotPasswordIn(BaseModel):
@@ -307,6 +310,10 @@ class LeadOut(ORM):
     offer: str | None = None
     offer_total: Decimal | None = None
     accepted_via: str | None = None  # "WhatsApp" | "Offer page"
+    # WhatsApp chat with this client (on their newest lead)
+    last_message: str | None = None
+    last_message_at: datetime | None = None
+    unread: int = 0
 
 
 # ---------- QR ----------
@@ -930,6 +937,30 @@ class AppointmentOut(BaseModel):
     confirmed_at: datetime | None
     reminded_at: datetime | None
     created_at: datetime
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    dir: str  # in (the client) | out (the salon, or Brisk on its behalf)
+    text: str
+    at: datetime
+    kind: str | None = None  # out: chat | auto_reply | bot | campaign | quote | booking_confirmed
+    status: str | None = None  # out: sent | delivered | read | failed | manual
+    error: str | None = None
+
+
+class ChatOut(BaseModel):
+    lead_id: int
+    name: str
+    phone: str | None
+    messages: list[ChatMessageOut]
+    can_reply: bool  # the client wrote in the last 24 hours (WhatsApp only allows free replies then)
+    connected: bool  # the WhatsApp Business API is set up
+    window_ends_at: datetime | None = None
+
+
+class ChatIn(BaseModel):
+    text: str = Field(min_length=1, max_length=4096)
 
 
 class BookedOut(AppointmentOut):

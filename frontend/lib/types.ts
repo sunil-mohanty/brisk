@@ -22,6 +22,8 @@ export interface Business {
   open_time: string;
   close_time: string;
   closed_days: string;
+  logo_url?: string | null;
+  wa_auto_reply?: string | null;
 }
 
 export type BusinessType = "unisex" | "ladies" | "gents" | "spa" | "nails" | "home" | "real_estate";
@@ -91,7 +93,13 @@ export interface Lead {
   offer: string | null;
   offer_total: string | null;
   accepted_via: "WhatsApp" | "Offer page" | "Quote" | null;
+  last_message: string | null;
+  last_message_at: string | null;
+  unread: number;
 }
+
+export interface ChatMessage { id: string; dir: "in" | "out"; text: string; at: string; kind: string | null; status: string | null; error: string | null }
+export interface Chat { lead_id: number; name: string; phone: string | null; messages: ChatMessage[]; can_reply: boolean; connected: boolean; window_ends_at: string | null }
 
 export interface QR {
   id: number;
@@ -462,6 +470,7 @@ export interface AdminSmeDetail extends AdminSme {
   admin_note: string | null;
   link_page_enabled: boolean;
   campaigns_enabled?: boolean;
+  wa_home?: boolean;
   slug: string | null;
   steps: { key: string; label: string; done: boolean; date: string | null }[];
   active_days: string[];

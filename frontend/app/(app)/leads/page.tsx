@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CustomerPicker } from "@/components/CustomerPicker";
+import { LeadChat } from "@/components/LeadChat";
 import { Sheet } from "@/components/Sheet";
 import { ErrorBox, Loading, PageHead, toast } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -24,10 +25,15 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [adding, setAdding] = useState(false);
+  const [chatting, setChatting] = useState<Lead | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => api.swr<Lead[]>("/leads", setLeads).catch((e) => setError(e.message)), []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000); // new WhatsApp chats come in by themselves
+    return () => clearInterval(t);
+  }, [load]);
 
   async function setStatus(l: Lead, status: LeadStatus, quiet = false) {
     try {
@@ -54,7 +60,7 @@ export default function LeadsPage() {
       <PageHead
         eyebrow="Leads & booking requests"
         title="Leads & Enquiries"
-        sub="Clients who accepted a campaign or quote, and booking requests from your link page and QR codes. Talk to them, then confirm the booking: they get the confirmation with the time on WhatsApp."
+        sub="Clients who wrote to your WhatsApp, accepted a campaign or quote, or asked from your link page and QR codes. Chat with them, then confirm the booking: they get the confirmation with the time on WhatsApp."
         action={<Tip id="l.add" order={1} text="Got an enquiry by phone, Instagram DM or walk-in? Add it here so nobody is forgotten."><button className="btn primary" onClick={() => setAdding(true)}>+ Add enquiry</button></Tip>}
       />
       <ErrorBox error={error} />
@@ -73,7 +79,7 @@ export default function LeadsPage() {
             <thead><tr><th>Client</th><th>Came from</th><th>Wants</th><th>Status</th><th>Received</th><th /></tr></thead>
             <tbody>
               {rows.map((l) => (
-                <tr key={l.id} className={toBook(l) && l.offer ? "lead-hot" : undefined}>
+                <tr key={l.id} className={(toBook(l) && l.offer) || l.unread ? "lead-hot" : undefined}>
                   <td className="c-main"><b>{l.customer.name}</b><div className="sub mono">{l.customer.phone}</div></td>
                   <td className="c-stat c-first" data-label="via">
                     {l.source}
@@ -92,6 +98,12 @@ export default function LeadsPage() {
                         {l.service_interest && l.requirement && <div className="sub">“{l.requirement}”</div>}
                       </>
                     )}
+                    {l.last_message && (
+                      <button type="button" className={`lead-msg${l.unread ? " unread" : ""}`} onClick={() => setChatting(l)}>
+                        <span aria-hidden="true">💬</span><span className="lead-msg-t">{l.last_message}</span>
+                        {l.unread > 0 && <em>{l.unread} new</em>}
+                      </button>
+                    )}
                     {(l.preferred_date || l.preferred_time || l.stylist_pref) && (
                       <div className="sub">
                         {[l.preferred_date && fmtDay(l.preferred_date), l.preferred_time, l.stylist_pref && `with ${l.stylist_pref}`].filter(Boolean).join(", ")}
@@ -108,7 +120,9 @@ export default function LeadsPage() {
                     <div className="acts">
                       {l.customer.phone && (
                         <>
-                          <a className="btn sm wa" href={waLink(l.customer.phone, hello(l))} target="_blank" rel="noreferrer" onClick={() => talked(l)}>WhatsApp</a>
+                          {l.last_message
+                            ? <button type="button" className="btn sm wa" onClick={() => setChatting(l)}>Chat{l.unread ? ` (${l.unread})` : ""}</button>
+                            : <a className="btn sm wa" href={waLink(l.customer.phone, hello(l))} target="_blank" rel="noreferrer" onClick={() => talked(l)}>WhatsApp</a>}
                           <a className="btn sm" href={`tel:${l.customer.phone.replace(/\s+/g, "")}`} onClick={() => talked(l)}>Call</a>
                         </>
                       )}
@@ -125,6 +139,7 @@ export default function LeadsPage() {
           </table>
         </div>
       )}
+      <LeadChat lead={chatting} onClose={() => setChatting(null)} onChanged={load} />
       <Sheet open={adding} onClose={() => setAdding(false)}>
         <AddLead onDone={() => { setAdding(false); load(); }} onCancel={() => setAdding(false)} />
       </Sheet>

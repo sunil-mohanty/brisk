@@ -120,6 +120,15 @@ export default function SmeDetailPage() {
                 </span>
               </span>
             </label>
+            <label className="check" style={{ alignItems: "flex-start", marginTop: 12 }}>
+              <input type="checkbox" checked={!!d.wa_home} onChange={(e) => patch({ wa_home: e.target.checked }, e.target.checked ? "New WhatsApp chats now go to this salon" : "New WhatsApp chats no longer go to this salon")} />
+              <span>
+                <b>Receives new WhatsApp chats</b> (people who write to the WhatsApp Business number first)
+                <span className="hint" style={{ display: "block" }}>
+                  {d.wa_home ? "On. Their messages get the automatic reply and land in this salon's Leads & Enquiries." : "Off. Only one salon can have this on: the one that owns the WhatsApp Business number."}
+                </span>
+              </span>
+            </label>
           </section>
           <section className="panel">
             <h2>Account</h2>

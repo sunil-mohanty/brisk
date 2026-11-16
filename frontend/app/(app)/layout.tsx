@@ -75,6 +75,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Omit<Session, "setBusiness"> | null>(null);
   const [more, setMore] = useState(false);
   const [menu, setMenu] = useState(false);
+  // New WhatsApp messages waiting in Leads & Enquiries (badge in the menu)
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!session || session.user.role === "staff") return;
+    const check = () => api.get<{ count: number }>("/leads/unread").then((r) => setUnread(r.count)).catch(() => {});
+    check();
+    const t = setInterval(check, 45000);
+    const onFocus = () => check();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("brisk:chat-read", onFocus);
+    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); window.removeEventListener("brisk:chat-read", onFocus); };
+  }, [session, path]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMore(false); setMenu(false); }, [path]);
@@ -133,16 +145,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <TipsProvider initialSeen={session.user.seen_tips ?? []}>
       <div className="app" data-vertical={vertical}>
         <aside className="side" aria-label="Main">
-          <Link href={isStaff ? "/me" : "/dashboard"} className="side-brand" aria-label={`${site.name} home`}>
-            <BriskMark size={42} tile={vertical === "salon" ? "#fff" : "var(--accent)"} ink={vertical === "salon" ? "var(--side)" : "#fff"} spark="var(--spark, #964734)" />
-            <span>{site.name}</span>
+          {/* The salon's own name and logo on top; Brisk sits quietly at the bottom */}
+          <Link href={isStaff ? "/me" : "/dashboard"} className="side-brand" aria-label={`${b.name} home`}>
+            {b.logo_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img className="side-logo" src={b.logo_url} alt="" />
+              : <span className="side-logo side-logo-i" aria-hidden="true">{initial}</span>}
+            <span className="side-brand-t"><b>{b.name}</b><small>{area}</small></span>
           </Link>
           <nav className="side-nav">
             {nav.map(([label, items]) => (
               <div className="side-group" key={label}>
                 <span className="side-label">{label}</span>
                 {items.map(([href, text, icon]) => (
-                  <Link key={href} href={href} aria-current={here(href) ? "page" : undefined}>{Icon[icon]()}<span>{text}</span></Link>
+                  <Link key={href} href={href} aria-current={here(href) ? "page" : undefined}>{Icon[icon]()}<span>{text}</span>
+                    {href === "/leads" && unread > 0 && <em className="side-badge" aria-label={`${unread} unread`}>{unread}</em>}</Link>
                 ))}
               </div>
             ))}
@@ -161,9 +178,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             )}
             <button type="button" className="side-salon" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu(!menu)}>
-              <span className="side-av" aria-hidden="true">{initial}</span>
-              <span className="side-salon-t"><b>{b.name}</b><span>{isStaff || session.user.role === "manager" ? `${session.user.name} · ${session.user.role}` : area}</span></span>
+              <span className="side-av" aria-hidden="true">{(session.user.name.trim()[0] || "U").toUpperCase()}</span>
+              <span className="side-salon-t"><b>{session.user.name}</b><span>{isStaff || session.user.role === "manager" ? session.user.role : "Owner"} · Settings & account</span></span>
             </button>
+            <a className="side-powered" href="/" target="_blank" rel="noreferrer">
+              <BriskMark size={18} tile="#fff" ink="var(--side)" spark="var(--spark, #964734)" />
+              <span>Powered by <b>{site.name}</b></span>
+            </a>
           </div>
         </aside>
         <main className="page">{children}</main>

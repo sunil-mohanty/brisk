@@ -73,10 +73,10 @@ export const api = {
   put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
   del: <T = void>(path: string) => request<T>("DELETE", path),
-  upload: <T>(path: string, file: File) => {
+  upload: <T>(path: string, file: File, method: "POST" | "PUT" = "POST") => {
     const fd = new FormData();
     fd.append("file", file);
-    return request<T>("POST", path, fd);
+    return request<T>(method, path, fd);
   },
 };
 

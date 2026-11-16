@@ -583,6 +583,14 @@ def campaign_video(token: str, db: Session = Depends(get_db)):
     return Response(_VIDEO_CACHE[key], media_type="video/mp4", headers={"Cache-Control": "public, max-age=300"})
 
 
+@router.get("/logo/{business_id}")
+def logo(business_id: int, db: Session = Depends(get_db)):
+    b = db.get(Business, business_id)
+    if not b or not b.logo_version:
+        raise HTTPException(404, "No logo")
+    return Response(b.logo, media_type=b.logo_type or "image/png", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @router.get("/c/{token}", response_model=s.PublicCampaign)
 def view_campaign(token: str, preview: bool = Query(default=False), db: Session = Depends(get_db)):
     c = _campaign(db, token)

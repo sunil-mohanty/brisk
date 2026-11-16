@@ -1,8 +1,10 @@
+import io
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -213,6 +215,38 @@ def tips_seen(body: s.TipsIn, user: User = Depends(current_user), db: Session = 
 @router.get("/business", response_model=s.BusinessOut)
 def get_business(user: User = Depends(current_user)):
     return user.business
+
+
+@router.put("/business/logo", response_model=s.BusinessOut)
+async def upload_logo(file: UploadFile = File(...), user: User = Depends(require_manager), db: Session = Depends(get_db)):
+    """The salon's logo: shown at the top of Brisk. Stored as a square-ish PNG, up to 512 px."""
+    raw = await file.read()
+    if len(raw) > 8 * 1024 * 1024:
+        raise HTTPException(413, "That picture is too big. Use one under 8 MB.")
+    try:
+        im = Image.open(io.BytesIO(raw))
+        im.load()
+    except Exception:
+        raise HTTPException(422, "That isn't a picture we can read. Use a PNG or JPG.")
+    im = im.convert("RGBA")
+    im.thumbnail((512, 512))
+    out = io.BytesIO()
+    im.save(out, "PNG", optimize=True)
+    biz = user.business
+    biz.logo, biz.logo_type, biz.logo_version = out.getvalue(), "image/png", secrets.token_hex(4)
+    record(db, biz.id, "logo_uploaded")
+    db.commit()
+    db.refresh(biz)
+    return biz
+
+
+@router.delete("/business/logo", response_model=s.BusinessOut)
+def delete_logo(user: User = Depends(require_manager), db: Session = Depends(get_db)):
+    biz = user.business
+    biz.logo, biz.logo_type, biz.logo_version = None, None, None
+    db.commit()
+    db.refresh(biz)
+    return biz
 
 
 @router.patch("/business", response_model=s.BusinessOut)

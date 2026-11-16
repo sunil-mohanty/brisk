@@ -282,3 +282,81 @@ def test_campaign_sent_on_whatsapp_accepted_then_booked_by_salon(client, wa, mon
     # Needs the template, and a published campaign
     monkeypatch.setattr(get_settings(), "whatsapp_campaign_template", None)
     assert client.post(f"/api/campaigns/{c['id']}/whatsapp-send", json={}, headers=h).status_code == 409
+
+
+def _home(client, headers):
+    """What the platform admin's "receives new WhatsApp chats" switch does."""
+    from app.db import SessionLocal
+    from app.models import Business, User
+
+    db = SessionLocal()
+    me = client.get("/api/me", headers=headers).json()
+    b = db.get(Business, me["business"]["id"])
+    b.wa_home = True
+    db.commit()
+    db.close()
+
+
+def test_new_chat_becomes_a_lead_with_auto_reply_and_salon_replies(client, wa):
+    h = signup(client)
+    _home(client, h)
+    # A stranger writes "Hello" → automatic reply, a WhatsApp lead, unread in the menu
+    _hook(client, [_text("Hello, do you do keratin on Fridays?")], name="Mira K")
+    assert wa[-1]["text"]["body"] == "Thanks for contacting Layla Beauty Lounge, we will reach out to you shortly."
+    leads = client.get("/api/leads", headers=h).json()
+    lead = leads[0]
+    assert lead["source"] == "WhatsApp" and lead["customer"]["name"] == "Mira K" and lead["status"] == "new"
+    assert lead["unread"] == 1 and lead["last_message"].startswith("Hello, do you do keratin")
+    assert client.get("/api/leads/unread", headers=h).json() == {"count": 1}
+    # A second message: same lead, no second auto-reply
+    n = len(wa)
+    _hook(client, [_text("Around 6pm if possible")], name="Mira K")
+    assert len(wa) == n
+    leads = client.get("/api/leads", headers=h).json()
+    assert len(leads) == 1 and leads[0]["unread"] == 2
+
+    # The owner opens the chat: both messages and the auto-reply, now read
+    chat = client.get(f"/api/leads/{lead['id']}/chat", headers=h).json()
+    assert [m["dir"] for m in chat["messages"]] == ["in", "out", "in"] and chat["messages"][1]["kind"] == "auto_reply"
+    assert chat["can_reply"] and chat["connected"]
+    assert client.get("/api/leads/unread", headers=h).json() == {"count": 0}
+    # … and replies from Brisk
+    r = client.post(f"/api/leads/{lead['id']}/chat", json={"text": "Yes! Friday 6pm works. Shall I book you?"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert wa[-1]["to"] == CLIENT[:3] + "551112233" or wa[-1]["text"]["body"].startswith("Yes! Friday 6pm")
+    assert r.json()["messages"][-1]["dir"] == "out" and r.json()["messages"][-1]["kind"] == "chat"
+    assert client.get("/api/leads", headers=h).json()[0]["status"] == "contacted"
+
+    # A custom auto-reply text
+    client.patch("/api/business", json={"wa_auto_reply": "Hi! {salon} here. We'll call you back within the hour."}, headers=h)
+    msg = _text("hi")
+    msg["from"] = "971509990000"
+    _hook(client, [msg], name="Noor")
+    assert wa[-1]["text"]["body"] == "Hi! Layla Beauty Lounge here. We'll call you back within the hour."
+
+    # More than 24 hours since the client wrote: no free reply
+    from app.db import SessionLocal
+    from app.models import WhatsAppInbound
+    db = SessionLocal()
+    for m in db.query(WhatsAppInbound).all():
+        m.created_at = datetime.now(timezone.utc) - timedelta(hours=30)
+    db.commit()
+    db.close()
+    r = client.post(f"/api/leads/{lead['id']}/chat", json={"text": "Still keen?"}, headers=h)
+    assert r.status_code == 409 and "24 hours" in r.json()["detail"]
+
+
+def test_logo_upload(client):
+    import io
+    from PIL import Image
+
+    h = signup(client)
+    buf = io.BytesIO()
+    Image.new("RGB", (900, 600), (10, 80, 90)).save(buf, "PNG")
+    b = client.put("/api/business/logo", files={"file": ("logo.png", buf.getvalue(), "image/png")}, headers=h).json()
+    assert b["logo_url"].startswith(f"/api/public/logo/{b['id']}?v=")
+    img = client.get(b["logo_url"])
+    assert img.status_code == 200 and img.headers["content-type"] == "image/png"
+    assert max(Image.open(io.BytesIO(img.content)).size) == 512
+    assert client.delete("/api/business/logo", headers=h).json()["logo_url"] is None
+    assert client.put("/api/business/logo", files={"file": ("x.png", b"nope", "image/png")}, headers=h).status_code == 422

@@ -39,6 +39,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHead eyebrow="Settings" title={`${W.Business} profile`} sub={`Clients see this on ${W.appointment} confirmations, quotes, their history and your link page.`} />
+      <LogoPanel />
       <form className="card" onSubmit={save}>
         <ErrorBox error={error} />
         <div className="form" style={{ marginTop: error ? 12 : 0 }}>
@@ -66,6 +67,43 @@ export default function SettingsPage() {
       <Suspense fallback={null}><SocialPanel /></Suspense>
       <WhatsAppPanel />
     </>
+  );
+}
+
+
+/** The salon's logo: shown at the top of the menu (and wherever the salon's brand appears). */
+function LogoPanel() {
+  const { business, setBusiness } = useSession();
+  const [busy, setBusy] = useState(false);
+  async function upload(f: File | undefined) {
+    if (!f) return;
+    setBusy(true);
+    try { setBusiness(await api.upload<Business>("/business/logo", f, "PUT")); toast("Logo saved"); }
+    catch (e) { toast((e as Error).message); }
+    setBusy(false);
+  }
+  async function remove() {
+    setBusiness(await api.del<Business>("/business/logo"));
+    toast("Logo removed");
+  }
+  return (
+    <section className="panel logo-panel" style={{ marginBottom: 16 }}>
+      <div className="logo-prev">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {business.logo_url ? <img src={business.logo_url} alt={`${business.name} logo`} /> : <span>{(business.name.trim()[0] || "S").toUpperCase()}</span>}
+      </div>
+      <div className="logo-t">
+        <h2 style={{ margin: 0 }}>Logo</h2>
+        <p className="small muted" style={{ margin: "4px 0 10px" }}>Shown at the top of the menu, next to your name. A square PNG or JPG works best (at least 256 × 256).</p>
+        <div className="acts" style={{ justifyContent: "flex-start" }}>
+          <label className="btn sm primary" style={{ cursor: "pointer" }}>
+            {busy ? "Uploading…" : business.logo_url ? "Change logo" : "Upload logo"}
+            <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {business.logo_url && <button type="button" className="btn sm ghost" onClick={remove}>Remove</button>}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -112,7 +150,17 @@ function Hours() {
 /** Whether the WhatsApp Business API is connected (set up once by the platform owner on the server). */
 function WhatsAppPanel() {
   const wa = useWhatsApp();
+  const { business, setBusiness } = useSession();
+  const [auto, setAuto] = useState(business.wa_auto_reply ?? "");
+  const [saving, setSaving] = useState(false);
   if (!wa || !wa.automatic) return null;  // phase 1: messages go from the owner's own WhatsApp
+  const fallback = `Thanks for contacting ${business.name}, we will reach out to you shortly.`;
+  async function saveAuto() {
+    setSaving(true);
+    try { setBusiness(await api.patch<Business>("/business", { wa_auto_reply: auto.trim() || null })); toast("Automatic reply saved"); }
+    catch (e) { toast((e as Error).message); }
+    setSaving(false);
+  }
   const rows: [boolean, string, string][] = [
     [wa.automatic, "Booking confirmations", "sent the moment a client books"],
     [wa.quotes, "Quotes with Accept / Decline buttons", "clients accept and pick a time inside WhatsApp"],
@@ -129,6 +177,12 @@ function WhatsAppPanel() {
           </div>
         ))}
       </div>
+      <label className="full" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
+        <span className="lbl">Automatic reply <span className="hint-inline">(when a client writes to your WhatsApp; once a day per client)</span></span>
+        <textarea rows={2} maxLength={1000} value={auto} onChange={(e) => setAuto(e.target.value)} placeholder={fallback} />
+        <span className="hint">Leave empty to use: “{fallback}” Their message lands in Leads &amp; Enquiries, where you can reply.</span>
+      </label>
+      <div className="foot" style={{ marginTop: 10 }}><button type="button" className="btn primary" disabled={saving} onClick={saveAuto}>{saving ? "Saving…" : "Save reply"}</button></div>
       {!wa.automatic && <p className="note" style={{ marginBottom: 0 }}>Without the WhatsApp Business API, {site.name} opens WhatsApp on your phone with each message ready, and you press send.</p>}
     </section>
   );

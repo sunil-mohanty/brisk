@@ -27,7 +27,8 @@ from . import booking, whatsapp
 from .activity import UAE, record
 from .logic import quote_url
 from .booking import when_text
-from .models import Appointment, Business, Campaign, Customer, OutboundMessage, Quote, QuoteStatus, WhatsAppInbound
+from .models import (Appointment, Business, Campaign, Customer, Lead, LeadStatus, OutboundMessage, Quote, QuoteStatus,
+                     WhatsAppInbound, utcnow)
 from .utils import is_expired, normalize_phone, quote_label, quote_totals, valid_until
 
 log = logging.getLogger("salon.wa_bot")
@@ -342,17 +343,60 @@ def _text(db: Session, text: str, to: str, name: str | None) -> None:
         if q:
             _decline(db, q, to)
             return
-    q = _latest_quote(db, to, tuple(QuoteStatus))
-    if q:
-        wa = q.business.whatsapp or q.business.phone
-        contact = f" or message the salon directly on {wa}" if wa else ""
-        whatsapp.reply_text(db, business_id=q.business_id, to=to, quote_id=q.id, body=(
-            f"Thanks for your message. This number handles quotes and bookings for {q.business.name}. "
-            f"Reply ACCEPT to accept your latest quote, BOOK to choose a time{contact}."))
+    # Anything else is a conversation: it goes to the salon's Leads & Enquiries, with an automatic reply
+    bid = business_for(db, to)
+    if bid:
+        chat_message(db, db.get(Business, bid), to, name, text)
     else:
         whatsapp.reply_text(db, business_id=None, to=to, body=(
             "Thanks for your message. This number sends quotes and booking confirmations for salons. "
             "Please message your salon directly."))
+
+
+def business_for(db: Session, to: str) -> int | None:
+    """Which salon a WhatsApp number is talking to: the salon that last messaged it, else a salon that has
+    them as a client, else the salon that owns the Business number (wa_home)."""
+    for m in db.scalars(select(OutboundMessage).where(OutboundMessage.business_id.is_not(None))
+                        .order_by(OutboundMessage.id.desc()).limit(500)):
+        if normalize_phone(m.to_phone) == to:
+            return m.business_id
+    for cu in db.scalars(select(Customer).where(Customer.phone.is_not(None)).order_by(Customer.id.desc())):
+        if normalize_phone(cu.phone) == to:
+            return cu.business_id
+    return db.scalar(select(Business.id).where(Business.wa_home.is_(True)).order_by(Business.id))
+
+
+AUTO_REPLY = "Thanks for contacting {salon}, we will reach out to you shortly."
+
+
+def chat_message(db: Session, b: Business, to: str, name: str | None, text: str) -> Lead:
+    """A client wrote to the salon: their lead (an open one from the last 30 days, or a new one) and,
+    once a day at most, the automatic reply. The owner reads and answers it in Leads & Enquiries."""
+    from .logic import find_customer_by_phone
+
+    cu = find_customer_by_phone(db, b.id, "+" + to)
+    if not cu:
+        cu = Customer(business_id=b.id, name=(name or "WhatsApp client")[:120], phone="+" + to)
+        db.add(cu)
+        db.flush()
+    since = utcnow() - timedelta(days=30)
+    lead = db.scalar(select(Lead).where(Lead.business_id == b.id, Lead.customer_id == cu.id, Lead.created_at >= since)
+                     .order_by(Lead.id.desc()))
+    if not lead:
+        lead = Lead(business_id=b.id, customer_id=cu.id, source="WhatsApp", requirement=(text or "")[:2000], status=LeadStatus.new)
+        db.add(lead)
+        record(db, b.id, "lead_whatsapp", cu.name)
+    elif lead.status in (LeadStatus.won, LeadStatus.lost) and not lead.requirement:
+        lead.requirement = (text or "")[:2000]
+    db.flush()
+    # The automatic reply: once in 24 hours, and not while the salon itself is talking to them
+    day = utcnow() - timedelta(hours=24)
+    recent = db.scalars(select(OutboundMessage).where(OutboundMessage.business_id == b.id, OutboundMessage.kind.in_(("auto_reply", "chat")),
+                                                      OutboundMessage.created_at >= day)).all()
+    if not any(normalize_phone(m.to_phone) == to for m in recent):
+        body = (b.wa_auto_reply or "").strip() or AUTO_REPLY.format(salon=b.name)
+        whatsapp.reply_text(db, business_id=b.id, to=to, body=body.replace("{salon}", b.name), kind="auto_reply")
+    return lead
 
 
 def handle_message(db: Session, msg: dict, contacts: list[dict]) -> None:
@@ -373,7 +417,9 @@ def handle_message(db: Session, msg: dict, contacts: list[dict]) -> None:
         kind, action, text = ("list" if it.get("list_reply") else "button"), reply.get("id"), reply.get("title")
     elif mtype == "text":
         kind, text = "text", (msg.get("text") or {}).get("body")
-    db.add(WhatsAppInbound(wa_message_id=wamid, from_phone=to, kind=kind, payload=(action or text or "")[:500]))
+    inbound = WhatsAppInbound(wa_message_id=wamid, from_phone=to, kind=kind, payload=(action or text or "")[:500],
+                              body=text if kind == "text" else None, business_id=business_for(db, to))
+    db.add(inbound)
     db.flush()
     try:
         handled = bool(action) and _route(db, action, to, name)

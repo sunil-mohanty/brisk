@@ -200,6 +200,7 @@ class SmeDetail(SmeRow):
     admin_note: str | None
     link_page_enabled: bool = False
     campaigns_enabled: bool = True
+    wa_home: bool = False  # new chats on the WhatsApp Business number go to this salon
     slug: str | None = None
     steps: list[dict]
     active_days: list[date]
@@ -216,6 +217,7 @@ class SmeUpdate(BaseModel):
     admin_note: str | None = Field(default=None, max_length=5000)
     link_page_enabled: bool | None = None
     campaigns_enabled: bool | None = None
+    wa_home: bool | None = None
 
 
 class PaymentIn(BaseModel):
@@ -394,6 +396,7 @@ def _detail(db: Session, b: Business) -> SmeDetail:
         admin_note=b.admin_note,
         link_page_enabled=b.link_page_enabled,
         campaigns_enabled=b.campaigns_enabled,
+        wa_home=b.wa_home,
         slug=b.slug,
         steps=[{"key": k, "label": label, "done": bool(steps[k]), "date": steps[k] if isinstance(steps[k], date) else None} for k, label in STEPS],
         active_days=list(days),
@@ -420,6 +423,9 @@ def update_sme(sme_id: int, body: SmeUpdate, admin: User = Depends(require_admin
     changes = body.model_dump(exclude_unset=True)
     if changes.get("status") == "suspended" and b.id == admin.business_id:
         raise HTTPException(409, "You can't pause your own account.")
+    if changes.get("wa_home"):  # one salon receives new chats on the Business number
+        for other in db.scalars(select(Business).where(Business.wa_home.is_(True), Business.id != b.id)):
+            other.wa_home = False
     for k, v in changes.items():
         setattr(b, k, v)
     if "status" in changes:
