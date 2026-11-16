@@ -1952,3 +1952,4 @@ tr.lead-hot td:first-child { box-shadow: inset 3px 0 0 var(--accent-bright, var(
   tr.lead-hot td:first-child { box-shadow: none; }
   table.ctable tr.lead-hot { box-shadow: inset 3px 0 0 var(--accent-bright, var(--accent)); }
 }
+.wa-why { margin-top: 4px; font-size: 12.5px; color: var(--rust, #9a4b2c); max-width: 520px; line-height: 1.4; }

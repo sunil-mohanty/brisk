@@ -397,7 +397,9 @@ def handle_status(db: Session, st: dict) -> None:
     if status == "failed":
         err = (st.get("errors") or [{}])[0]
         m.status = "failed"
-        m.error = f"{err.get('code', '')}: {err.get('title') or err.get('message') or 'not delivered'}"[:300]
+        detail = (err.get("error_data") or {}).get("details") or ""
+        m.error = f"{err.get('code', '')}: {err.get('title') or err.get('message') or 'not delivered'}{f' ({detail})' if detail else ''}"[:300]
+        log.warning("WhatsApp message to %s failed: %s", m.to_phone, m.error)
     elif order.get(status, 0) > order.get(m.status, 0):
         m.status = status
 

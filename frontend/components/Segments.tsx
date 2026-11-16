@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ErrorBox, Pill, toast } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Audience, CampaignWaSend, Categories } from "@/lib/types";
-import { useWhatsApp } from "@/lib/whatsapp";
+import { useWhatsApp, waWhy } from "@/lib/whatsapp";
 
 /** The owner's categories (at most 4) with client counts, shared by the Clients page, import and the campaign send panel. */
 export function useCategories(): [Categories | null, (c: Categories) => void] {
@@ -149,7 +149,8 @@ function SendWithApi({ campaignId, initialTag, onSent }: { campaignId: number; i
             const st = r.wa_status ? WA_STATE[r.wa_status] : null;
             return (
               <div className={`row${r.sent_at ? " is-sent" : ""}`} key={r.customer_id}>
-                <div className="l"><b>{r.name}</b><div className="mono">{r.phone || "no mobile number"}</div></div>
+                <div className="l"><b>{r.name}</b><div className="mono">{r.phone || "no mobile number"}</div>
+                  {r.wa_status === "failed" && !r.accepted && <div className="wa-why">{waWhy(r.wa_error)}</div>}</div>
                 <div className="acts" style={{ flexWrap: "nowrap" }}>
                   {r.accepted ? <Pill status="accepted" label="Accepted" />
                     : r.opted_out ? <Pill status="neutral" label="Stopped offers" />
