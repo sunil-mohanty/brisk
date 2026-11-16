@@ -47,7 +47,7 @@ export default function TodayPage() {
         <Link href="/leads" className="kpi kpilink"><span>New leads</span><strong>{d.new_leads}</strong><em>{d.new_leads ? "waiting for your reply" : "all answered"}</em></Link>
         {business.link_page_enabled
           ? <Link href="/link" className="kpi kpilink"><span>Link page visits</span><strong>{d.link_views_7d}</strong><em>{d.link_taps_7d} taps this week</em></Link>
-          : <Link href="/quotes" className="kpi kpilink"><span>Awaiting booking</span><strong>{d.awaiting_booking.length}</strong><em>accepted quotes to book in</em></Link>}
+          : <Link href="/quotes?tab=quotes" className="kpi kpilink"><span>Awaiting booking</span><strong>{d.awaiting_booking.length}</strong><em>accepted quotes to book in</em></Link>}
         <Link href="/services?due=1" className="kpi kpilink"><span>{W.rebook}</span><strong>{d.due_soon}</strong><em>in the next 30 days</em></Link>
       </div>
       {(d.to_send.length > 0 || d.awaiting_booking.length > 0 || d.low_stock > 0) && (
@@ -55,7 +55,7 @@ export default function TodayPage() {
           {d.to_send.length > 0 && <ToSend rows={d.to_send} onDone={load} />}
           {d.awaiting_booking.length > 0 && (
             <section className="panel attention">
-              <h2>Accepted, waiting for a booking <Link href="/quotes">Quotes</Link></h2>
+              <h2>Accepted, waiting for a booking <Link href="/quotes?tab=quotes">Quotes</Link></h2>
               <div className="list">
                 {d.awaiting_booking.map((q) => (
                   <div className="row" key={q.id}>
@@ -94,7 +94,7 @@ export default function TodayPage() {
         <NewEnquiries />
         <DueToRebook rows={d.due_services} onSent={load} W={W} />
         <section className="panel">
-          <h2>Recent quotes <Link href="/quotes">All quotes</Link></h2>
+          <h2>Recent quotes <Link href="/quotes?tab=quotes">All quotes</Link></h2>
           <div className="list">
             {d.recent_quotes.length ? d.recent_quotes.map((q) => (
               <Link className="row" key={q.id} href={`/quotes/${q.id}`}>

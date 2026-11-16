@@ -17,7 +17,7 @@ import { CampaignPreview } from "@/components/CampaignPreview";
 
 export default function CampaignPage() {
   const on = useCampaignsOn();
-  if (!on) return <><PageHead title="Campaign" back={{ href: "/quotes?tab=campaigns", label: "Quote & Campaign" }} /><AddonGate /></>;
+  if (!on) return <><PageHead title="Campaign" back={{ href: "/quotes?tab=campaigns", label: "Campaign & Quote" }} /><AddonGate /></>;
   return <Suspense fallback={<Loading />}><CampaignDetail /></Suspense>;
 }
 
@@ -66,7 +66,7 @@ function CampaignDetail() {
     <>
       <PageHead
         title={c.title}
-        back={{ href: "/quotes?tab=campaigns", label: "Quote & Campaign" }}
+        back={{ href: "/quotes?tab=campaigns", label: "Campaign & Quote" }}
         eyebrow={c.draft ? "Draft" : !c.active ? "Paused" : c.expired ? "Ended" : "Live"}
         sub={`${money(c.totals.total, cur)} · ${duration(c.duration_min)}${c.valid_until ? ` · until ${fmtDate(c.valid_until)}` : ""}`}
         action={<>

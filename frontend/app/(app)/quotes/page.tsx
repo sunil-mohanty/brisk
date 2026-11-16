@@ -21,12 +21,13 @@ export default function QuoteCampaignPage() {
 
 const waiting = (q: Quote) => q.status === "sent" || q.status === "viewed";
 
-/** Quote & Campaign: the two ways to send an offer, side by side, then everything sent so far. */
+/** Campaign & Quote: the two ways to send an offer, side by side, then everything sent so far. */
 function QuoteCampaign() {
   const params = useSearchParams();
   const router = useRouter();
   const on = useCampaignsOn();
-  const [tab, setTab] = useState<Tab>(params.get("tab") === "campaigns" ? "campaigns" : "quotes");
+  // Campaigns first; quotes when asked for (or when the Campaigns add-on is off)
+  const [tab, setTab] = useState<Tab>(params.get("tab") === "quotes" || !on ? "quotes" : "campaigns");
   const [quotes, setQuotes] = useState<Quote[] | null>(null);
   const [camps, setCamps] = useState<Campaign[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,29 +40,11 @@ function QuoteCampaign() {
 
   return (
     <>
-      <PageHead title="Quote & Campaign" eyebrow="Your offers"
-        sub="Make an offer once, then choose how it goes out: a quote to your clients on WhatsApp, or a campaign for social media and client groups." />
+      <PageHead title="Campaign & Quote" eyebrow="Your offers"
+        sub="Make an offer once, then choose how it goes out: a campaign for social media and client groups, or a quote to your clients on WhatsApp." />
       <ErrorBox error={error} />
 
       <div className="qc-choices">
-        <article className="qc-choice">
-          <div className="qc-choice-top">
-            <span className="qc-ico">{Icon.quotes()}</span>
-            <div>
-              <h2>Quote</h2>
-              <p className="qc-for">For your clients, sent on WhatsApp</p>
-            </div>
-          </div>
-          <Steps steps={["Add services & price, or a picture", "Pick one or many clients, or add a new one", "Send on WhatsApp. They accept from the link"]} />
-          <div className="qc-stats">
-            <span><b>{quotes ? quotes.filter(waiting).length : "–"}</b> waiting</span>
-            <span><b>{quotes ? quotes.filter((q) => q.status === "accepted").length : "–"}</b> accepted</span>
-          </div>
-          <Tip id="qc.quote" order={1} text="One quote, sent to one client or a whole list. Each client gets their own link to accept.">
-            <Link className="btn primary qc-go" href="/quotes/new">{Icon.quotes()}New quote</Link>
-          </Tip>
-        </article>
-
         <article className={`qc-choice camp-choice${on ? "" : " is-locked"}`}>
           {!on && <span className="addon-badge">Add-on</span>}
           <div className="qc-choice-top">
@@ -88,11 +71,29 @@ function QuoteCampaign() {
             </>
           ) : <AddonGate compact />}
         </article>
+        <article className="qc-choice">
+          <div className="qc-choice-top">
+            <span className="qc-ico">{Icon.quotes()}</span>
+            <div>
+              <h2>Quote</h2>
+              <p className="qc-for">For your clients, sent on WhatsApp</p>
+            </div>
+          </div>
+          <Steps steps={["Add services & price, or a picture", "Pick one or many clients, or add a new one", "Send on WhatsApp. They accept from the link"]} />
+          <div className="qc-stats">
+            <span><b>{quotes ? quotes.filter(waiting).length : "–"}</b> waiting</span>
+            <span><b>{quotes ? quotes.filter((q) => q.status === "accepted").length : "–"}</b> accepted</span>
+          </div>
+          <Tip id="qc.quote" order={1} text="One quote, sent to one client or a whole list. Each client gets their own link to accept.">
+            <Link className="btn primary qc-go" href="/quotes/new">{Icon.quotes()}New quote</Link>
+          </Tip>
+        </article>
+
       </div>
 
       <div className="qc-tabs" role="tablist" aria-label="Sent so far">
-        <button type="button" role="tab" aria-selected={tab === "quotes"} onClick={() => go("quotes")}>Quotes <span>{quotes?.length ?? ""}</span></button>
         <button type="button" role="tab" aria-selected={tab === "campaigns"} onClick={() => go("campaigns")}>Campaigns <span>{on ? camps?.length ?? "" : "Add-on"}</span></button>
+        <button type="button" role="tab" aria-selected={tab === "quotes"} onClick={() => go("quotes")}>Quotes <span>{quotes?.length ?? ""}</span></button>
       </div>
       {tab === "quotes" ? <QuoteList quotes={quotes} /> : on ? <CampaignList rows={camps} /> : <AddonGate />}
     </>

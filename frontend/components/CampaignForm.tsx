@@ -73,7 +73,9 @@ export function CampaignForm({ campaign, template }: { campaign?: Campaign; temp
     setTitle(a.title); setHeadline(a.headline); setDescription(a.description);
     setRows(a.rows.length ? a.rows : [{ ...blankRow }]);
     setDiscount(a.discount ?? "0"); setMinutes(a.minutes ?? ""); setNotes(a.notes ?? "");
-    if (!aiTouched) setAiDesc(a.image ?? "");
+    // A new template brings its own picture description (replacing what was there)
+    setAiDesc(a.image ?? "");
+    setAiTouched(false);
     setError(null);
   }
   function clearTemplate() {
@@ -101,7 +103,7 @@ export function CampaignForm({ campaign, template }: { campaign?: Campaign; temp
         name: title.trim(), headline: headline.trim() || null, description: description.trim() || null, services,
         category: applied?.from.category ?? null, audience: applied?.from.audience ?? [],
         discount: Number(discount) || 0, duration_min: Number(minutes) || null, notes: notes.trim() || null,
-        image_prompt: (aiDesc.trim() || applied?.image || "").slice(0, 400) || null,
+        image_prompt: (aiDesc.trim() || applied?.image || "").slice(0, 8000) || null,
       });
       reloadMine();
       toast(replaced ? `“${title.trim()}” updated in My templates` : `Saved to My templates. Find it under Browse templates next time.`);

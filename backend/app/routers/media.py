@@ -31,9 +31,8 @@ def ai_status(user: User = Depends(current_user), db: Session = Depends(get_db))
 @router.post("/ai", response_model=s.AiImageOut, status_code=201)
 def ai_picture(body: s.AiImageIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """An AI picture from a description (and optionally a reference photo), before the quote is saved."""
-    desc = (body.description or "").strip()
-    if len(desc) < 3:
-        raise HTTPException(422, "Describe the picture you want, e.g. \"bridal makeup set-up with soft flowers\".")
+    # No description: an elegant salon scene (the offer's own words go on top of the picture anyway)
+    desc = (body.description or "").strip() or "an elegant, modern beauty salon interior with soft light, fresh flowers and premium products"
     ref = quote_art.reference(db, user.business_id, body.reference_id)
     try:
         a = ai_art.generate(db, user.business_id, None, designer.described_prompt(desc, bool(ref)), reference=ref)

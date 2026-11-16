@@ -74,7 +74,7 @@ export function TemplateStrip({ menu, applied, onApply, onClear, mine, reloadMin
   const [open, setOpen] = useState<Filter | null>(null);
   const hasMine = !!mine?.length;
 
-  // Arriving with ?template=L01 (e.g. from an idea on the Quote & Campaign page)
+  // Arriving with ?template=L01 (e.g. from an idea on the Campaign & Quote page)
   useEffect(() => {
     if (!initial || applied || !salon) return;
     const t = OFFER_TEMPLATES.find((x) => x.code === initial.toUpperCase());

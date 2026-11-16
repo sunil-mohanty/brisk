@@ -64,7 +64,7 @@ function AiForm({ busy, left, hint, onMake, onCancel }: {
   return (
     <div className="aiform">
       <label className="full">Describe the picture
-        <textarea rows={3} maxLength={400} value={desc} onChange={(e) => setDesc(e.target.value)}
+        <textarea rows={4} maxLength={8000} value={desc} onChange={(e) => setDesc(e.target.value)}
           placeholder="e.g. Luxury hydra-facial room with gold mask, glass serum bottles and white orchids, soft warm light" />
         {hint && <span className="hint">{hint}</span>}
       </label>

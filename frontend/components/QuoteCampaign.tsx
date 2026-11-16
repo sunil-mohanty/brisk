@@ -42,7 +42,7 @@ export function AddonGate({ compact }: { compact?: boolean }) {
       <p>Turn one offer into posts on <b>Facebook</b> and <b>Instagram</b>, a <b>WhatsApp message to a whole client group</b>, and a link & QR code for ads and posters. See who opened it, accepted and booked.</p>
       <div className="acts" style={{ justifyContent: "flex-start" }}>
         {ask ? <a className="btn primary" href={ask} target="_blank" rel="noreferrer">Ask to switch it on</a> : <span className="muted small">Ask us to switch it on for your account.</span>}
-        {!compact && <Link className="btn" href="/quotes">Back to quotes</Link>}
+        {!compact && <Link className="btn" href="/quotes?tab=quotes">Back to quotes</Link>}
       </div>
     </div>
   );

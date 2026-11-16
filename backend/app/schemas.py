@@ -1139,7 +1139,7 @@ class OfferTemplateIn(BaseModel):
     discount: Decimal = Field(default=Decimal("0"), ge=0)
     duration_min: int | None = Field(default=None, ge=15, le=600)
     notes: str | None = Field(default=None, max_length=2000)
-    image_prompt: str | None = Field(default=None, max_length=400)  # what to ask the AI for
+    image_prompt: str | None = Field(default=None, max_length=8000)  # what to ask the AI for
 
 
 class OfferTemplateOut(OfferTemplateIn):
@@ -1280,7 +1280,7 @@ class CampaignPostOut(ORM):
 
 
 class AiImageIn(BaseModel):
-    description: str | None = Field(default=None, max_length=400)  # empty: made from the quote's services
+    description: str | None = Field(default=None, max_length=8000)  # 1,000+ words; empty: a general salon scene
     reference_id: int | None = None  # an uploaded photo for the AI to follow (POST /media)
 
 

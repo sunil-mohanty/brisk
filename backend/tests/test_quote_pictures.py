@@ -122,7 +122,7 @@ def test_ai_picture_from_a_description_before_saving(client, fal):
 
     h = signup(client)
     assert client.get("/api/media/ai", headers=h).json()["ai_left"] == 3
-    assert client.post("/api/media/ai", json={"description": ""}, headers=h).status_code == 422
+    assert client.post("/api/media/ai", json={"description": "x" * 8001}, headers=h).status_code == 422
     r = client.post("/api/media/ai", json={"description": "Relaxing spa room with candles & orchids"}, headers=h)
     assert r.status_code == 201, r.text
     pic = r.json()
@@ -169,3 +169,16 @@ def test_link_preview_pictures_are_small_squares(client):
         r = client.get(url)
         assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and len(r.content) < 300_000
         assert Image.open(io.BytesIO(r.content)).size == (800, 800)
+
+
+def test_ai_picture_long_or_empty_description(client, fal):
+    import json
+
+    h = signup(client)
+    long = " ".join(f"detail{i}" for i in range(520))  # 500+ words are fine
+    assert client.post("/api/media/ai", json={"description": long}, headers=h).status_code == 201
+    prompts = lambda: [json.loads(r.content)["prompt"] for r in fal if r.content and b'"prompt"' in r.content]
+    assert "detail519" in prompts()[-1]
+    # Empty: an elegant salon scene instead of an error
+    assert client.post("/api/media/ai", json={"description": ""}, headers=h).status_code == 201
+    assert "beauty salon interior" in prompts()[-1]

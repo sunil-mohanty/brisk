@@ -1582,7 +1582,7 @@ table.att .is-today { background: color-mix(in srgb, var(--accent-soft) 45%, tra
   .app .side { background: var(--side); }
 }
 
-/* ---------------- Quote & Campaign ---------------- */
+/* ---------------- Campaign & Quote ---------------- */
 .qc-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
 .qc-choice { position: relative; border-radius: 22px; padding: 22px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
 .qc-choice::after { content: ""; position: absolute; inset: -40% -20% auto auto; width: 60%; height: 90%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent); pointer-events: none; }

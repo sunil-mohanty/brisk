@@ -27,7 +27,7 @@ function staffGroups(perms: string[], w: Words): [string, NavItem[]][] {
     ...(clients ? ([["Clients", [
       ["/customers", "Clients", "customers"],
       ["/leads", "Leads & Enquiries", "enquiries"],
-      ["/quotes", "Quote & Campaign", "quotes"],
+      ["/quotes", "Campaign & Quote", "quotes"],
       ["/services", w.Visits, "visits"],
     ]]] as [string, NavItem[]][]) : []),
   ];
@@ -41,7 +41,7 @@ function groups(linkPage: boolean, w: Words): [string, NavItem[]][] {
       ["/dashboard", "Today", "today"],
       ["/appointments", w.Appointments, "appointments"],
       ["/leads", "Leads & Enquiries", "enquiries"],
-      ["/quotes", "Quote & Campaign", "quotes"],
+      ["/quotes", "Campaign & Quote", "quotes"],
       ...(linkPage ? ([["/link", "Link page", "link"]] as NavItem[]) : []),
     ]],
     ["People", [
@@ -59,14 +59,14 @@ function groups(linkPage: boolean, w: Words): [string, NavItem[]][] {
 const staffTabs = (perms: string[], w: Words): NavItem[] => [
   ["/me", "My day", "today"],
   ["/appointments", w.diary, "appointments"],
-  ...(perms.includes("clients") ? ([["/customers", "Clients", "customers"], ["/quotes", "Quotes", "quotes"]] as NavItem[]) : []),
+  ...(perms.includes("clients") ? ([["/customers", "Clients", "customers"], ["/quotes", "Campaigns", "quotes"]] as NavItem[]) : []),
 ];
 
 const tabs = (w: Words): NavItem[] => [
   ["/dashboard", "Today", "today"],
   ["/appointments", w.diary, "appointments"],
   ["/leads", "Leads", "enquiries"],
-  ["/quotes", "Quotes", "quotes"],
+  ["/quotes", "Campaigns", "quotes"],
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

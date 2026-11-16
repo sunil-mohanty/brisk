@@ -42,7 +42,6 @@ export function CampaignPicture({ pic, setPic, aiDesc, setAiDesc, current }: {
     setBusy(null);
   }
   async function generate() {
-    if (aiDesc.trim().length < 3) return toast("Describe the picture first.");
     setBusy("ai");
     try {
       const r = await api.post<{ id: number; preview: string; ai_left: number | null }>("/media/ai", { description: aiDesc.trim() });
@@ -96,9 +95,9 @@ export function CampaignPicture({ pic, setPic, aiDesc, setAiDesc, current }: {
         ) : (
           <div className="cpic-ai">
             <label className="full">Describe the picture
-              <textarea rows={3} maxLength={400} value={aiDesc} onChange={(e) => setAiDesc(e.target.value)}
+              <textarea rows={7} maxLength={8000} value={aiDesc} onChange={(e) => setAiDesc(e.target.value)}
                 placeholder="e.g. Luxury facial room with a jade roller, glass serum bottles and white orchids, soft warm light" />
-              <span className="hint">{aiDesc ? "Filled in from your offer. Change any words you like." : "Say what's in the scene, the mood and the colours."} No text needed: your name, offer and price are added on top.</span>
+              <span className="hint">{aiDesc ? "Filled in from your template. Change any words you like, as long as you like." : "Say what's in the scene, the mood and the colours, or leave it empty for an elegant salon scene."} No text needed: your name, offer and price are added on top.{aiDesc.trim() && <b className="mono" style={{ float: "right", fontWeight: 400 }}>{aiDesc.trim().split(/\s+/).length} words</b>}</span>
             </label>
             <div className="cpic-ai-row">
               {artOf("ai")?.preview && <Thumb src={artOf("ai")!.preview!} onOpen={setBig} />}

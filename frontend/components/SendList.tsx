@@ -40,13 +40,13 @@ export function SendList({ made }: { made: Quote[] }) {
         sub={wa?.quotes ? "Send them all at once from your WhatsApp Business number. Each client gets Accept and Decline buttons." : "Each client has their own link. Tap Send to open WhatsApp with the message ready, press send there, then come back for the next one."}
         action={wa?.quotes && !auto
           ? <button className="btn wa" disabled={busy} onClick={sendAll}>{busy ? "Sending…" : `Send all ${made.length} on WhatsApp`}</button>
-          : <Link className="btn" href="/quotes">Done</Link>} />
+          : <Link className="btn" href="/quotes?tab=quotes">Done</Link>} />
       <ErrorBox error={error} />
       {auto && (
         <div className="wa-banner">
           <b>{auto.sent} sent automatically.</b>
           {auto.failed > 0 && <span>{auto.failed} couldn&apos;t be sent; use the Send buttons below for those.</span>}
-          <Link className="btn sm" href="/quotes">Done</Link>
+          <Link className="btn sm" href="/quotes?tab=quotes">Done</Link>
         </div>
       )}
       {!wa?.quotes && next && (
