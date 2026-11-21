@@ -962,6 +962,8 @@ class ChatChannel(BaseModel):
     how: str | None = None  # facebook / instagram: dm (they messaged) | comment (one private reply to their comment)
     until: datetime | None = None
     hint: str | None = None  # why they can't be messaged now
+    can_public: bool = False  # facebook / instagram: a public reply under their comment is always possible
+    comment: str | None = None  # the comment a public reply goes under
 
 
 class ChatOut(BaseModel):
@@ -979,6 +981,7 @@ class ChatOut(BaseModel):
 class ChatIn(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
     channel: str = Field(default="whatsapp", pattern="^(whatsapp|facebook|instagram)$")
+    public: bool = False  # facebook / instagram: reply under their comment on the post instead of a private message
 
 
 class BookedOut(AppointmentOut):

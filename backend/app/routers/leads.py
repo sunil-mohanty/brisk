@@ -77,9 +77,10 @@ def _social_msgs(db: Session, people: list[SocialPerson]) -> list[s.ChatMessageO
             m = s.ChatMessageOut(id=f"s{e.id}", dir="in", text=f"Reacted to {on} ({e.text or 'like'})", at=_utc(e.created_at), note="Reaction")
         elif e.kind == "message_in":
             m = s.ChatMessageOut(id=f"s{e.id}", dir="in", text=e.text or "", at=_utc(e.created_at))
-        else:  # message_out | private_reply
+        else:  # message_out | private_reply | comment_reply
             m = s.ChatMessageOut(id=f"s{e.id}", dir="out", text=e.text or "", at=_utc(e.created_at),
-                                 kind="private_reply" if e.kind == "private_reply" else "auto_reply" if e.status == "auto" else "chat",
+                                 kind={"private_reply": "private_reply", "comment_reply": "public_reply"}.get(e.kind)
+                                 or ("auto_reply" if e.status == "auto" else "chat"),
                                  status="failed" if e.status == "failed" else "sent", error=e.error)
         m.channel = e.provider
         out.append(m)
@@ -119,8 +120,10 @@ def _chat(db: Session, lead: Lead) -> s.ChatOut:
         talked = any(m.dir == "in" and m.channel == p.provider and m.note != "Reaction" for m in msgs)
         hint = None if how else (f"{LABEL[p.provider]} only allows a message within 24 hours of theirs, or one private reply "
                                  "to a comment within 7 days." if p.msg_id or talked else None)
+        lc = social_bot.last_comment(db, p)
         channels.append((latest, s.ChatChannel(channel=p.provider, label=f"{LABEL[p.provider]} {who}".strip(), can_reply=bool(how),
-                                               how=how, until=_utc(until) if until else None, hint=hint)))
+                                               how=how, until=_utc(until) if until else None, hint=hint,
+                                               can_public=bool(lc), comment=(lc.text or "")[:200] if lc else None)))
     channels.sort(key=lambda x: x[0] or _utc(lead.created_at).replace(year=1970), reverse=True)
     return s.ChatOut(lead_id=lead.id, name=lead.customer.name, phone=lead.customer.phone, messages=msgs,
                      can_reply=can, connected=whatsapp.automatic(), window_ends_at=ends,
@@ -168,7 +171,7 @@ def _send_social(db: Session, lead: Lead, body: s.ChatIn) -> s.ChatOut:
     if not p:
         raise HTTPException(422, f"{lead.customer.name.split()[0]} hasn't written on {LABEL[body.channel]}.")
     try:
-        ev = social_bot.send_from_chat(db, p, body.text.strip())
+        ev = social_bot.send_from_chat(db, p, body.text.strip(), public=body.public)
     except social_bot.SendError as e:
         if str(e) == "closed":
             raise HTTPException(409, f"{LABEL[p.provider]} only allows a reply within 24 hours of their last message, or one "

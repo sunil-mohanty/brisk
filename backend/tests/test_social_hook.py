@@ -21,6 +21,7 @@ class MetaFake(FakeApis):
         super().__init__()
         self.sent: list[dict] = []
         self.fail_send = False
+        self.public: list[tuple] = []
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         p = req.url.path
@@ -35,6 +36,11 @@ class MetaFake(FakeApis):
                 return httpx.Response(400, json={"error": {"message": "This message is sent outside of allowed window.", "code": 10}})
             rid = "PSID-" + (body["recipient"].get("comment_id") or body["recipient"].get("id"))
             return httpx.Response(200, json={"recipient_id": rid, "message_id": f"m{len(self.sent)}"})
+        if req.url.host == "graph.test" and (p.endswith("/comments") or p.endswith("/replies")) and req.method == "POST":
+            from urllib.parse import parse_qs
+            f = {k: v[0] for k, v in parse_qs(req.content.decode()).items()}
+            self.public.append((p, f["message"], f["access_token"]))
+            return httpx.Response(200, json={"id": f"reply{len(self.public)}"})
         if req.url.host == "graph.test" and p.endswith("/DM1"):
             return httpx.Response(200, json={"name": "Noor Ali", "first_name": "Noor"})
         return super().__call__(req)
@@ -213,3 +219,23 @@ def test_unknown_page_is_ignored(client, meta):
     assert hook(client, fb_comment()).status_code == 200
     with SessionLocal() as db:
         assert db.query(SocialEvent).count() == 0 and db.query(Business).count() == 1
+
+
+def test_public_reply_under_comment_after_private_reply_is_used(client, meta):
+    h, c = setup_posted(client, meta)
+    hook(client, fb_comment())
+    lead = client.get("/api/leads", headers=h).json()[0]
+    fb = client.get(f"/api/leads/{lead['id']}/chat", headers=h).json()["channels"][0]
+    assert fb["can_reply"] is False and fb["can_public"] is True and fb["comment"] == "How much for two people?"
+    r = client.post(f"/api/leads/{lead['id']}/chat", json={"text": "Hi Sara, we've sent you a message!", "channel": "facebook", "public": True}, headers=h)
+    assert r.status_code == 200, r.text
+    assert meta.public == [("/v21.0/C1/comments", "Hi Sara, we've sent you a message!", "page-token-1")]
+    out = [m for m in r.json()["messages"] if m["dir"] == "out"]
+    assert out[-1]["kind"] == "public_reply"
+    # Instagram replies go to /replies
+    body = {"object": "instagram", "entry": [{"id": "IG1", "changes": [{"field": "comments", "value": {
+        "id": "IGC9", "text": "Nice", "from": {"id": "IGU9", "username": "noor"}, "media": {"id": "igmedia1"}}}]}]}
+    hook(client, body)
+    ig_lead = next(l for l in client.get("/api/leads", headers=h).json() if l["social"] == "@noor")
+    r = client.post(f"/api/leads/{ig_lead['id']}/chat", json={"text": "Thank you!", "channel": "instagram", "public": True}, headers=h)
+    assert r.status_code == 200 and meta.public[-1][0] == "/v21.0/IGC9/replies"

@@ -103,7 +103,7 @@ export interface Lead {
 
 export type ChatChannelId = "whatsapp" | "facebook" | "instagram";
 export interface ChatMessage { id: string; dir: "in" | "out"; text: string; at: string; kind: string | null; status: string | null; error: string | null; channel: ChatChannelId; note?: string | null }
-export interface ChatChannel { channel: ChatChannelId; label: string; can_reply: boolean; how: "dm" | "comment" | null; until: string | null; hint: string | null }
+export interface ChatChannel { channel: ChatChannelId; label: string; can_reply: boolean; how: "dm" | "comment" | null; until: string | null; hint: string | null; can_public?: boolean; comment?: string | null }
 export interface Chat { lead_id: number; name: string; phone: string | null; messages: ChatMessage[]; can_reply: boolean; connected: boolean; window_ends_at: string | null; channels: ChatChannel[]; channel: ChatChannelId }
 
 export interface QR {

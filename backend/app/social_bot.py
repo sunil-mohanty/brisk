@@ -268,10 +268,47 @@ def _open_comment(db: Session, p: SocialPerson) -> SocialEvent | None:
     return None
 
 
-def send_from_chat(db: Session, p: SocialPerson, text: str) -> SocialEvent:
+def last_comment(db: Session, p: SocialPerson) -> SocialEvent | None:
+    """Their newest comment: the salon can always answer it publicly, underneath."""
+    return db.scalar(select(SocialEvent).where(SocialEvent.person_id == p.id, SocialEvent.kind == "comment",
+                                               SocialEvent.remote_id.is_not(None)).order_by(SocialEvent.id.desc()))
+
+
+def public_reply(db: Session, a: SocialAccount, p: SocialPerson, comment: SocialEvent, text: str) -> SocialEvent:
+    """Answer under their comment on the post, as the Page / Instagram account (everyone can see it)."""
+    from .social import client
+    ev = SocialEvent(business_id=p.business_id, person_id=p.id, campaign_id=comment.campaign_id, provider=a.provider,
+                     kind="comment_reply", text=text, post_id=comment.remote_id, status="sent")
+    db.add(ev)
+    edge = "replies" if a.provider == "instagram" else "comments"
+    try:
+        r = client().post(f"{_graph()}/{comment.remote_id}/{edge}", data={"message": text[:2000], "access_token": _token(a)})
+        out = r.json() if r.content else {}
+        if r.status_code >= 400:
+            err = out.get("error") if isinstance(out, dict) else None
+            msg = (err.get("error_user_msg") or err.get("message")) if isinstance(err, dict) else r.text[:200]
+            if "permission" in str(msg).lower() or (isinstance(err, dict) and err.get("code") in (10, 200)):
+                msg = f"{msg} (Press Reconnect in Settings → Social media and allow everything; the Meta app needs " \
+                      f"{'instagram_manage_comments' if a.provider == 'instagram' else 'pages_manage_engagement'}.)"
+            raise SendError(str(msg)[:300])
+        ev.remote_id = out.get("id")
+    except SendError as e:
+        ev.status, ev.error = "failed", str(e)[:300]
+    except Exception as e:  # network
+        ev.status, ev.error = "failed", f"Couldn't reach Meta: {e}"[:300]
+    db.flush()
+    return ev
+
+
+def send_from_chat(db: Session, p: SocialPerson, text: str, public: bool = False) -> SocialEvent:
     a = account_for(db, p)
     if not a:
         raise SendError(f"{LABEL[p.provider]} isn't connected any more. Connect it again in Settings → Social media.")
+    if public:
+        c = last_comment(db, p)
+        if not c:
+            raise SendError(f"They haven't commented on {LABEL[p.provider]}, so there's nothing to reply under.")
+        return public_reply(db, a, p, c, text)
     how, _ = reply_state(db, p)
     if how == "dm":
         ev = SocialEvent(business_id=p.business_id, person_id=p.id, provider=p.provider, kind="message_out", text=text, status="sent")

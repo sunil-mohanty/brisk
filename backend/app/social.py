@@ -35,7 +35,8 @@ META_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts",
                "instagram_basic", "instagram_content_publish",
                # comments, reactions and messages become leads (webhooks), with a private reply
                "pages_manage_metadata", "pages_read_user_content", "pages_messaging",
-               "instagram_manage_comments", "instagram_manage_messages"]
+               "instagram_manage_comments", "instagram_manage_messages",
+               "pages_manage_engagement"]  # reply publicly under a comment
 WEBHOOK_FIELDS = "feed,messages"
 GOOGLE_SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"]
 PROVIDERS = ("facebook", "instagram", "youtube")

@@ -179,8 +179,9 @@ Once posting works, Brisk can also receive what people do on those posts:
 Setup, in the same Meta app:
 
 1. **Dashboard → Customize** the use cases and **Add**: Page use case `pages_manage_metadata`, `pages_read_user_content`,
-   `pages_messaging`; Instagram use case `instagram_manage_comments`, `instagram_manage_messages`.
-   Add the same five to the **login configuration** from step A5 (Facebook Login for Business → Configurations → edit).
+   `pages_manage_engagement` (public replies under comments); Messenger use case (**Add use cases → Engage with customers
+   on Messenger from Meta**) `pages_messaging`; Instagram use case `instagram_manage_comments`, `instagram_manage_messages`.
+   Add the same six to the **login configuration** from step A5 (Facebook Login for Business → Configurations → edit).
 2. Railway → **api** → Variables: `META_WEBHOOK_VERIFY_TOKEN=<any long random text>` (if you leave it out, the WhatsApp
    `WHATSAPP_VERIFY_TOKEN` is used). Redeploy.
 3. **Webhooks** (left menu, or the use case → Webhooks): choose **Page** in the dropdown → **Subscribe to this object**:
@@ -199,6 +200,7 @@ Setup, in the same Meta app:
 | Nothing arrives in Leads | Webhook fields not subscribed (step 3), or the salon connected before this update: press **Reconnect**. Logs show `page webhook: N event(s)`. |
 | "Verify token does not match" when saving | `META_WEBHOOK_VERIFY_TOKEN` on the api isn't the same text, or the api wasn't redeployed. |
 | Comment arrives but no private reply | `pages_messaging` (Facebook) / `instagram_manage_messages` (Instagram) not granted: Reconnect. The reason shows in the chat. |
+| App is Unpublished and real comments never arrive (Meta's Test does) | In Development mode Meta only sends events from people with a role on the app. **Publish** the app (App settings → Basic: privacy URL, icon, category); your own Pages need no App Review. |
 | Comment shows without a name (Facebook) | `pages_read_user_content` is missing or not approved yet. |
 
 ### B. Google project (YouTube)

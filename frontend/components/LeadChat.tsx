@@ -9,7 +9,7 @@ import type { Chat, ChatChannelId, Lead } from "@/lib/types";
 import { waWhy } from "@/lib/whatsapp";
 
 const WHO: Record<string, string> = {
-  auto_reply: "Automatic reply", private_reply: "Private reply", bot: "Brisk", campaign: "Campaign", quote: "Quote", booking_confirmed: "Booking confirmation", chat: "",
+  auto_reply: "Automatic reply", private_reply: "Private reply", public_reply: "Public reply under their comment", bot: "Brisk", campaign: "Campaign", quote: "Quote", booking_confirmed: "Booking confirmation", chat: "",
 };
 const TICK: Record<string, string> = { sent: "✓", delivered: "✓✓", read: "✓✓", manual: "", failed: "!" };
 const NAME: Record<ChatChannelId, string> = { whatsapp: "WhatsApp", facebook: "Facebook", instagram: "Instagram" };
@@ -23,6 +23,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ch, setCh] = useState<ChatChannelId | null>(null); // where the reply goes
+  const [pub, setPub] = useState(false); // facebook / instagram: answer under their comment, for everyone to see
   const end = useRef<HTMLDivElement>(null);
   const id = lead?.id;
 
@@ -31,7 +32,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
     api.get<Chat>(`/leads/${id}/chat`).then((c) => { setChat(c); window.dispatchEvent(new Event("brisk:chat-read")); }).catch((e) => setError(e.message));
   }, [id]);
   useEffect(() => {
-    setChat(null); setText(""); setError(null); setCh(null);
+    setChat(null); setText(""); setError(null); setCh(null); setPub(false);
     if (!id) return;
     load();
     const t = setInterval(load, 6000); // new messages from the client show up by themselves
@@ -46,7 +47,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
     if (!body || !id) return;
     setBusy(true); setError(null);
     try {
-      setChat(await api.post<Chat>(`/leads/${id}/chat`, { text: body, channel: chan }));
+      setChat(await api.post<Chat>(`/leads/${id}/chat`, { text: body, channel: chan, public: !!social && isPublic }));
       setText("");
       onChanged();
     } catch (err) { setError((err as Error).message); }
@@ -57,6 +58,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
   const chan: ChatChannelId = ch ?? chat?.channel ?? "whatsapp";
   const social = chat?.channels.find((c) => c.channel === chan && c.channel !== "whatsapp");
   const several = (chat?.channels.length ?? 0) > 1;
+  const isPublic = !!social && (pub || !social.can_reply) && social.can_public; // only public is left once the private message is used
   const ends = chat?.window_ends_at ? new Date(chat.window_ends_at) : null;
   const hoursLeft = ends ? Math.max(0, Math.round((ends.getTime() - Date.now()) / 36e5)) : 0;
 
@@ -102,14 +104,24 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
             <div ref={end} />
           </div>
 
-          {chat && social ? (social.can_reply ? (
+          {chat && social ? (social.can_reply || social.can_public ? (
             <form className="chat-send" onSubmit={send}>
               {error && <div className="chat-err" role="alert">{error}</div>}
-              <textarea value={text} rows={2} maxLength={1000} placeholder={`Reply to ${first} on ${NAME[social.channel]}…`} aria-label={`Reply to ${first} on ${NAME[social.channel]}`}
+              {social.can_reply && social.can_public && (
+                <div className="chat-mode" role="radiogroup" aria-label="How to reply">
+                  <button type="button" role="radio" aria-checked={!isPublic} onClick={() => setPub(false)}>Private message</button>
+                  <button type="button" role="radio" aria-checked={isPublic} onClick={() => setPub(true)}>Public reply under comment</button>
+                </div>
+              )}
+              <textarea value={text} rows={2} maxLength={1000}
+                placeholder={isPublic ? `Reply under ${first}'s comment…` : `Message ${first} on ${NAME[social.channel]}…`}
+                aria-label={isPublic ? `Reply under ${first}'s comment` : `Message ${first} on ${NAME[social.channel]}`}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-              <button className="btn primary" disabled={busy || !text.trim()}>{busy ? "Sending…" : "Send"}</button>
-              <span className="small muted chat-hint">{social.how === "comment"
+              <button className="btn primary" disabled={busy || !text.trim()}>{busy ? "Sending…" : isPublic ? "Reply" : "Send"}</button>
+              <span className="small muted chat-hint">{isPublic
+                ? `${social.can_reply ? "" : `${NAME[social.channel]} allows another private message once ${first} writes back. Meanwhile, `}this shows under their comment${social.comment ? ` “${social.comment.length > 50 ? social.comment.slice(0, 50) + "…" : social.comment}”` : ""} as ${business.name}, where everyone can see it`
+                : social.how === "comment"
                 ? `Goes as a private message about their comment. ${NAME[social.channel]} allows one, until ${social.until ? fmtDateTime(social.until) : "7 days after the comment"}; if they write back you can keep chatting`
                 : `Goes as a ${NAME[social.channel]} message · you can reply until ${social.until ? fmtDateTime(social.until) : "24 hours after theirs"}`} · Enter to send</span>
             </form>
