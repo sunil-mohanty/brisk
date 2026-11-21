@@ -221,21 +221,22 @@ def test_unknown_page_is_ignored(client, meta):
         assert db.query(SocialEvent).count() == 0 and db.query(Business).count() == 1
 
 
-def test_public_reply_under_comment_after_private_reply_is_used(client, meta):
+
+def test_after_the_private_reply_the_chat_explains_and_reopens_when_they_write_back(client, meta):
     h, c = setup_posted(client, meta)
     hook(client, fb_comment())
+    assert "Just reply to this message" in meta.sent[0]["message"]["text"]
     lead = client.get("/api/leads", headers=h).json()[0]
     fb = client.get(f"/api/leads/{lead['id']}/chat", headers=h).json()["channels"][0]
-    assert fb["can_reply"] is False and fb["can_public"] is True and fb["comment"] == "How much for two people?"
-    r = client.post(f"/api/leads/{lead['id']}/chat", json={"text": "Hi Sara, we've sent you a message!", "channel": "facebook", "public": True}, headers=h)
-    assert r.status_code == 200, r.text
-    assert meta.public == [("/v21.0/C1/comments", "Hi Sara, we've sent you a message!", "page-token-1")]
-    out = [m for m in r.json()["messages"] if m["dir"] == "out"]
-    assert out[-1]["kind"] == "public_reply"
-    # Instagram replies go to /replies
-    body = {"object": "instagram", "entry": [{"id": "IG1", "changes": [{"field": "comments", "value": {
-        "id": "IGC9", "text": "Nice", "from": {"id": "IGU9", "username": "noor"}, "media": {"id": "igmedia1"}}}]}]}
-    hook(client, body)
-    ig_lead = next(l for l in client.get("/api/leads", headers=h).json() if l["social"] == "@noor")
-    r = client.post(f"/api/leads/{ig_lead['id']}/chat", json={"text": "Thank you!", "channel": "instagram", "public": True}, headers=h)
-    assert r.status_code == 200 and meta.public[-1][0] == "/v21.0/IGC9/replies"
+    assert fb["can_reply"] is False and "one private message per comment" in fb["hint"]
+    # Sara answers the private message in Messenger (from her PSID): the chat opens for 24 hours
+    dm = {"object": "page", "entry": [{"id": "PAGE1", "messaging": [
+        {"sender": {"id": "PSID-C1"}, "recipient": {"id": "PAGE1"}, "message": {"mid": "m-sara", "text": "Can I come at 5?"}}]}]}
+    hook(client, dm)
+    with SessionLocal() as db:
+        assert db.query(SocialPerson).count() == 1  # the same person, not a new one
+    chat = client.get(f"/api/leads/{lead['id']}/chat", headers=h).json()
+    assert chat["channels"][0]["can_reply"] and chat["channels"][0]["how"] == "dm"
+    r = client.post(f"/api/leads/{lead['id']}/chat", json={"text": "Yes, see you at 5!", "channel": "facebook"}, headers=h)
+    assert r.status_code == 200 and meta.sent[-1]["recipient"] == {"id": "PSID-C1"}
+    assert len(meta.sent) == 2  # no "thanks for contacting" after the offer message

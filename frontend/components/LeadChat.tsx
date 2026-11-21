@@ -23,7 +23,6 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ch, setCh] = useState<ChatChannelId | null>(null); // where the reply goes
-  const [pub, setPub] = useState(false); // facebook / instagram: answer under their comment, for everyone to see
   const end = useRef<HTMLDivElement>(null);
   const id = lead?.id;
 
@@ -32,7 +31,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
     api.get<Chat>(`/leads/${id}/chat`).then((c) => { setChat(c); window.dispatchEvent(new Event("brisk:chat-read")); }).catch((e) => setError(e.message));
   }, [id]);
   useEffect(() => {
-    setChat(null); setText(""); setError(null); setCh(null); setPub(false);
+    setChat(null); setText(""); setError(null); setCh(null);
     if (!id) return;
     load();
     const t = setInterval(load, 6000); // new messages from the client show up by themselves
@@ -47,7 +46,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
     if (!body || !id) return;
     setBusy(true); setError(null);
     try {
-      setChat(await api.post<Chat>(`/leads/${id}/chat`, { text: body, channel: chan, public: !!social && isPublic }));
+      setChat(await api.post<Chat>(`/leads/${id}/chat`, { text: body, channel: chan }));
       setText("");
       onChanged();
     } catch (err) { setError((err as Error).message); }
@@ -58,7 +57,6 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
   const chan: ChatChannelId = ch ?? chat?.channel ?? "whatsapp";
   const social = chat?.channels.find((c) => c.channel === chan && c.channel !== "whatsapp");
   const several = (chat?.channels.length ?? 0) > 1;
-  const isPublic = !!social && (pub || !social.can_reply) && social.can_public; // only public is left once the private message is used
   const ends = chat?.window_ends_at ? new Date(chat.window_ends_at) : null;
   const hoursLeft = ends ? Math.max(0, Math.round((ends.getTime() - Date.now()) / 36e5)) : 0;
 
@@ -96,7 +94,7 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
                       {m.dir === "out" && m.kind && WHO[m.kind] && <span className="chat-who">{WHO[m.kind]}</span>}
                       <p>{m.text}</p>
                       <time>{fmtTime(m.at)} {m.dir === "out" && m.status && <b className={m.status === "read" ? "read" : undefined}>{TICK[m.status] ?? ""}</b>}</time>
-                      {m.status === "failed" && <small className="wa-why">{waWhy(m.error)}</small>}
+                      {m.status === "failed" && <small className="wa-why">{m.channel === "whatsapp" ? waWhy(m.error) : `${NAME[m.channel]} said: ${m.error ?? "unknown error"}`}</small>}
                     </div>
                   </div>
                 );
@@ -104,31 +102,23 @@ export function LeadChat({ lead, onClose, onChanged }: { lead: Lead | null; onCl
             <div ref={end} />
           </div>
 
-          {chat && social ? (social.can_reply || social.can_public ? (
+          {chat && social ? (social.can_reply ? (
             <form className="chat-send" onSubmit={send}>
               {error && <div className="chat-err" role="alert">{error}</div>}
-              {social.can_reply && social.can_public && (
-                <div className="chat-mode" role="radiogroup" aria-label="How to reply">
-                  <button type="button" role="radio" aria-checked={!isPublic} onClick={() => setPub(false)}>Private message</button>
-                  <button type="button" role="radio" aria-checked={isPublic} onClick={() => setPub(true)}>Public reply under comment</button>
-                </div>
-              )}
               <textarea value={text} rows={2} maxLength={1000}
-                placeholder={isPublic ? `Reply under ${first}'s comment…` : `Message ${first} on ${NAME[social.channel]}…`}
-                aria-label={isPublic ? `Reply under ${first}'s comment` : `Message ${first} on ${NAME[social.channel]}`}
+                placeholder={`Message ${first} privately on ${NAME[social.channel]}…`}
+                aria-label={`Message ${first} on ${NAME[social.channel]}`}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
-              <button className="btn primary" disabled={busy || !text.trim()}>{busy ? "Sending…" : isPublic ? "Reply" : "Send"}</button>
-              <span className="small muted chat-hint">{isPublic
-                ? `${social.can_reply ? "" : `${NAME[social.channel]} allows another private message once ${first} writes back. Meanwhile, `}this shows under their comment${social.comment ? ` “${social.comment.length > 50 ? social.comment.slice(0, 50) + "…" : social.comment}”` : ""} as ${business.name}, where everyone can see it`
-                : social.how === "comment"
+              <button className="btn primary" disabled={busy || !text.trim()}>{busy ? "Sending…" : "Send"}</button>
+              <span className="small muted chat-hint">{social.how === "comment"
                 ? `Goes as a private message about their comment. ${NAME[social.channel]} allows one, until ${social.until ? fmtDateTime(social.until) : "7 days after the comment"}; if they write back you can keep chatting`
                 : `Goes as a ${NAME[social.channel]} message · you can reply until ${social.until ? fmtDateTime(social.until) : "24 hours after theirs"}`} · Enter to send</span>
             </form>
           ) : (
             <div className="chat-off">
               {chat.messages.some((m) => m.channel === social.channel && m.kind === "private_reply" && m.status !== "failed")
-                ? `${first} got your private reply on ${NAME[social.channel]}. When they write back, you can keep chatting here for 24 hours.`
+                ? `${first} got your private message on ${NAME[social.channel]}. ${NAME[social.channel]} allows one per comment, so you can message ${first} again as soon as they reply to it. Their reply shows up here and you can keep chatting for 24 hours.`
                 : social.hint ?? `${first} can't be messaged on ${NAME[social.channel]} yet: they only reacted. When they comment or message, you can reply here.`}
               <a className="btn sm" href={META_INBOX} target="_blank" rel="noreferrer">Open Meta inbox</a>
               {lead.customer.phone && <a className="btn sm wa" href={waLink(lead.customer.phone, `Hi ${first}, this is ${business.name}. `)} target="_blank" rel="noreferrer">WhatsApp</a>}

@@ -179,9 +179,9 @@ Once posting works, Brisk can also receive what people do on those posts:
 Setup, in the same Meta app:
 
 1. **Dashboard → Customize** the use cases and **Add**: Page use case `pages_manage_metadata`, `pages_read_user_content`,
-   `pages_manage_engagement` (public replies under comments); Messenger use case (**Add use cases → Engage with customers
+   Messenger use case (**Add use cases → Engage with customers
    on Messenger from Meta**) `pages_messaging`; Instagram use case `instagram_manage_comments`, `instagram_manage_messages`.
-   Add the same six to the **login configuration** from step A5 (Facebook Login for Business → Configurations → edit).
+   Add the same five to the **login configuration** from step A5 (Facebook Login for Business → Configurations → edit).
 2. Railway → **api** → Variables: `META_WEBHOOK_VERIFY_TOKEN=<any long random text>` (if you leave it out, the WhatsApp
    `WHATSAPP_VERIFY_TOKEN` is used). Redeploy.
 3. **Webhooks** (left menu, or the use case → Webhooks): choose **Page** in the dropdown → **Subscribe to this object**:

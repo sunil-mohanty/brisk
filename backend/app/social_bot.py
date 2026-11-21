@@ -27,7 +27,8 @@ log = logging.getLogger("salon.social")
 
 LABEL = {"facebook": "Facebook", "instagram": "Instagram"}
 PRIVATE_REPLY = ("Hi {first}! Thanks for your comment on our offer \"{title}\" ({price}).\n\n"
-                 "Here it is: {url}\nTap the link to accept and choose your time.\n\n{salon}")
+                 "Here it is: {url}\nTap the link to accept and choose your time.\n\n"
+                 "Any questions? Just reply to this message and we'll answer you here.\n\n{salon}")
 REPLY_DAYS = 7  # Meta allows one private reply to a comment, within 7 days
 DM_HOURS = 24  # and free messages within 24 hours of the person's last message
 
@@ -201,8 +202,9 @@ def on_message(db: Session, a: SocialAccount, *, sender: str, mid: str | None, t
     db.flush()
     # The automatic "thanks, we'll reach out", once a day at most
     from .wa_bot import AUTO_REPLY
-    recent_auto = db.scalar(select(SocialEvent.id).where(SocialEvent.person_id == p.id, SocialEvent.kind == "message_out",
-                                                         SocialEvent.status == "auto",
+    # not when the salon already wrote to them today (the offer message, or the owner)
+    recent_auto = db.scalar(select(SocialEvent.id).where(SocialEvent.person_id == p.id,
+                                                         SocialEvent.kind.in_(("message_out", "private_reply")),
                                                          SocialEvent.created_at >= utcnow() - timedelta(hours=24)))
     if b.social_auto_reply and not recent_auto and not (last_in and _aware(last_in) > utcnow() - timedelta(hours=24)):
         body = ((b.wa_auto_reply or "").strip() or AUTO_REPLY.format(salon=b.name)).replace("{salon}", b.name)

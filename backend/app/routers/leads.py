@@ -118,12 +118,13 @@ def _chat(db: Session, lead: Lead) -> s.ChatOut:
         who = f"@{p.username}" if p.username else (p.name or "")
         latest = max((m.at for m in msgs if m.dir == "in" and m.channel == p.provider), default=None)
         talked = any(m.dir == "in" and m.channel == p.provider and m.note != "Reaction" for m in msgs)
-        hint = None if how else (f"{LABEL[p.provider]} only allows a message within 24 hours of theirs, or one private reply "
-                                 "to a comment within 7 days." if p.msg_id or talked else None)
+        hint = None if how else (f"{LABEL[p.provider]} allows one private message per comment. You can message them again "
+                                 "as soon as they reply to it, for 24 hours after each of their messages."
+                                 if p.msg_id or talked else None)
         lc = social_bot.last_comment(db, p)
         channels.append((latest, s.ChatChannel(channel=p.provider, label=f"{LABEL[p.provider]} {who}".strip(), can_reply=bool(how),
                                                how=how, until=_utc(until) if until else None, hint=hint,
-                                               can_public=bool(lc), comment=(lc.text or "")[:200] if lc else None)))
+                                               comment=(lc.text or "")[:200] if lc else None)))
     channels.sort(key=lambda x: x[0] or _utc(lead.created_at).replace(year=1970), reverse=True)
     return s.ChatOut(lead_id=lead.id, name=lead.customer.name, phone=lead.customer.phone, messages=msgs,
                      can_reply=can, connected=whatsapp.automatic(), window_ends_at=ends,
