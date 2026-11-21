@@ -132,6 +132,8 @@ class Business(Base):
     # Business number belong to this salon (when the number isn't tied to a client already)
     wa_auto_reply: Mapped[str | None] = mapped_column(Text)
     wa_home: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Facebook / Instagram: send a private reply with the offer link to everyone who comments on a campaign post
+    social_auto_reply: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
     @property
     def logo_url(self) -> str | None:
@@ -651,6 +653,48 @@ class CampaignPost(Base):
     error: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SocialPerson(Base):
+    """Someone who commented, reacted or wrote to the salon on Facebook or Instagram. Meta never shares their phone:
+    they become a client (without a mobile) and a lead, and get the mobile when they accept the offer link."""
+
+    __tablename__ = "social_people"
+    __table_args__ = (UniqueConstraint("business_id", "provider", "person_id", name="uq_social_person"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))  # facebook | instagram
+    person_id: Mapped[str] = mapped_column(String(80))  # the id on their comment (or DM)
+    msg_id: Mapped[str | None] = mapped_column(String(80), index=True)  # their id for direct messages (PSID / IGSID)
+    name: Mapped[str | None] = mapped_column(String(200))
+    username: Mapped[str | None] = mapped_column(String(120))
+    token: Mapped[str] = mapped_column(String(16), unique=True)  # in the offer link, to join them up when they accept
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    customer: Mapped["Customer | None"] = relationship()
+
+
+class SocialEvent(Base):
+    """A comment, reaction or message on Facebook / Instagram (and what the salon sent back)."""
+
+    __tablename__ = "social_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    business_id: Mapped[int] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), index=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("social_people.id", ondelete="CASCADE"), index=True)
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("campaigns.id", ondelete="SET NULL"), index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(20))  # comment | reaction | message_in | message_out | private_reply
+    text: Mapped[str | None] = mapped_column(Text)
+    remote_id: Mapped[str | None] = mapped_column(String(160), index=True)  # comment id / message id (stops repeats)
+    post_id: Mapped[str | None] = mapped_column(String(160))
+    status: Mapped[str | None] = mapped_column(String(20))  # sent | failed (what we sent)
+    error: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+    person: Mapped["SocialPerson | None"] = relationship()
 
 
 class WhatsAppInbound(Base):

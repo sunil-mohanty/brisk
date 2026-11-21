@@ -18,7 +18,7 @@ from ..config import get_settings
 from ..db import get_db
 from .. import ai_art, creative, designer, social, whatsapp
 from ..logic import get_owned, item_out
-from ..models import Campaign, CampaignArt, CampaignItem, CampaignSend, Customer, OutboundMessage, Quote, User, utcnow
+from ..models import Campaign, CampaignArt, CampaignItem, CampaignSend, Customer, OutboundMessage, Quote, SocialEvent, User, utcnow
 from ..security import current_user
 from ..utils import money, new_token, normalize_phone, quote_totals, whatsapp_link
 
@@ -67,6 +67,8 @@ def campaign_out(db: Session, c: Campaign) -> s.CampaignOut:
         wa_message=client_message(c, "{name}"),
         has_ai_art=c.art_id is not None, art_id=c.art_id, art_kind=_art_kind(db, c), draft=c.draft,
         ai_left=ai_art.left_this_month(db, c.business_id),
+        comments=db.scalar(select(func.count(SocialEvent.id)).where(SocialEvent.campaign_id == c.id, SocialEvent.kind == "comment")) or 0,
+        reactions=db.scalar(select(func.count(SocialEvent.id)).where(SocialEvent.campaign_id == c.id, SocialEvent.kind == "reaction")) or 0,
         sent_whatsapp=db.scalar(select(func.count(CampaignSend.id)).where(CampaignSend.campaign_id == c.id)) or 0,
     )
 

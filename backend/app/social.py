@@ -32,7 +32,11 @@ from .utils import quote_totals
 log = logging.getLogger("salon.social")
 
 META_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_manage_posts", "business_management",
-               "instagram_basic", "instagram_content_publish"]
+               "instagram_basic", "instagram_content_publish",
+               # comments, reactions and messages become leads (webhooks), with a private reply
+               "pages_manage_metadata", "pages_read_user_content", "pages_messaging",
+               "instagram_manage_comments", "instagram_manage_messages"]
+WEBHOOK_FIELDS = "feed,messages"
 GOOGLE_SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"]
 PROVIDERS = ("facebook", "instagram", "youtube")
 LOGIN_FOR = {"facebook": "meta", "instagram": "meta", "youtube": "google"}
@@ -195,6 +199,7 @@ def finish_meta(db: Session, business_id: int, code: str) -> int:
         _upsert(db, business_id, "facebook", p["id"], name=p.get("name") or "Facebook Page", handle=None,
                 picture_url=((p.get("picture") or {}).get("data") or {}).get("url"), token_enc=token)
         n += 1
+        subscribe_page(p["id"], p["access_token"])
         ig = p.get("instagram_business_account")
         if ig and ig.get("id"):
             _upsert(db, business_id, "instagram", ig["id"], name=ig.get("name") or ig.get("username") or "Instagram",
@@ -204,6 +209,18 @@ def finish_meta(db: Session, business_id: int, code: str) -> int:
         raise SocialError("No Facebook Page was shared. Connect again and tick your salon's Page (and its Instagram).")
     _select_default(db, business_id)
     return n
+
+
+def subscribe_page(page_id: str, page_token: str) -> bool:
+    """Ask Meta to send this Page's comments, reactions and messages (and its Instagram's) to our webhook."""
+    try:
+        r = client().post(f"{get_settings().meta_graph_url.rstrip('/')}/{page_id}/subscribed_apps",
+                          data={"subscribed_fields": WEBHOOK_FIELDS, "access_token": page_token})
+        _json(r)
+        return True
+    except Exception as e:  # missing pages_manage_metadata: posting still works, comments won't arrive
+        log.warning("Couldn't subscribe Page %s to webhooks (comments won't become leads): %s", page_id, e)
+        return False
 
 
 def finish_google(db: Session, business_id: int, code: str) -> int:

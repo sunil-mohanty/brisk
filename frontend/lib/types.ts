@@ -24,6 +24,7 @@ export interface Business {
   closed_days: string;
   logo_url?: string | null;
   wa_auto_reply?: string | null;
+  social_auto_reply?: boolean;
 }
 
 export type BusinessType = "unisex" | "ladies" | "gents" | "spa" | "nails" | "home" | "real_estate";
@@ -96,10 +97,14 @@ export interface Lead {
   last_message: string | null;
   last_message_at: string | null;
   unread: number;
+  channel?: "whatsapp" | "facebook" | "instagram" | null;
+  social?: string | null;
 }
 
-export interface ChatMessage { id: string; dir: "in" | "out"; text: string; at: string; kind: string | null; status: string | null; error: string | null }
-export interface Chat { lead_id: number; name: string; phone: string | null; messages: ChatMessage[]; can_reply: boolean; connected: boolean; window_ends_at: string | null }
+export type ChatChannelId = "whatsapp" | "facebook" | "instagram";
+export interface ChatMessage { id: string; dir: "in" | "out"; text: string; at: string; kind: string | null; status: string | null; error: string | null; channel: ChatChannelId; note?: string | null }
+export interface ChatChannel { channel: ChatChannelId; label: string; can_reply: boolean; how: "dm" | "comment" | null; until: string | null; hint: string | null }
+export interface Chat { lead_id: number; name: string; phone: string | null; messages: ChatMessage[]; can_reply: boolean; connected: boolean; window_ends_at: string | null; channels: ChatChannel[]; channel: ChatChannelId }
 
 export interface QR {
   id: number;
@@ -274,6 +279,8 @@ export interface Campaign {
   has_ai_art: boolean;
   ai_left: number | null;
   sent_whatsapp?: number;
+  comments?: number;
+  reactions?: number;
 }
 
 export interface PublicCampaign {

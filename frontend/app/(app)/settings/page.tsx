@@ -214,6 +214,12 @@ function SocialPanel() {
     toast("Disconnected");
   }
   async function choose(a: SocialAccount) { setSt(await api.post<SocialStatus>(`/social/accounts/${a.id}/select`)); }
+  const { business, setBusiness } = useSession();
+  const autoOn = business.social_auto_reply ?? true;
+  async function setAuto(on: boolean) {
+    try { setBusiness(await api.patch<Business>("/business", { social_auto_reply: on })); toast(on ? "Comments get the offer link automatically" : "Automatic replies to comments are off"); }
+    catch (e) { toast((e as Error).message); }
+  }
 
   const logins = [
     { id: "meta" as const, title: "Facebook & Instagram", ready: st?.meta_ready, providers: ["facebook", "instagram"],
@@ -260,6 +266,20 @@ function SocialPanel() {
           </div>
         );
       })}
+      {st?.accounts.some((a) => a.provider === "facebook" || a.provider === "instagram") && (
+        <div className="soc-group">
+          <h3><span>Comments, likes and messages</span></h3>
+          <p className="muted small" style={{ margin: "0 0 10px" }}>
+            Everyone who comments on a campaign post, likes it on Facebook, or messages your Page or Instagram appears in Leads &amp; Enquiries,
+            where you can reply. (Instagram doesn&apos;t share likes.)
+          </p>
+          <label className="check" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={autoOn} onChange={(e) => setAuto(e.target.checked)} />
+            <span><b>Reply to comments automatically</b><br />
+              <span className="small muted">Sends each person who comments on a campaign a private message with the offer link, so they can accept and book. Messages to your Page get your automatic reply.</span></span>
+          </label>
+        </div>
+      )}
     </section>
   );
 }

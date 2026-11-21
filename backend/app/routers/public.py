@@ -13,7 +13,7 @@ from ..activity import record
 from .. import schemas as s
 from ..config import get_settings
 from ..db import get_db
-from .. import booking
+from .. import booking, social_bot
 from ..activity import UAE
 from ..logic import find_customer_by_phone, initials, item_out, public_business, social_url, totals_out
 from ..models import (
@@ -37,6 +37,7 @@ from ..models import (
     QuoteStatus,
     QuoteView,
     ServiceRecord,
+    SocialPerson,
 )
 from ..pdf import quote_pdf
 from ..utils import is_expired, normalize_phone, quote_label, valid_until, whatsapp_link
@@ -606,19 +607,28 @@ def campaign_slots(token: str, day: date = Query(), db: Session = Depends(get_db
     return s.SlotsOut(day=day, duration_min=c.duration_min, slots=booking.free_slots(db, c.business, day, c.duration_min, " + ".join(i.description for i in c.items)))
 
 
-def create_campaign_quote(db: Session, c: Campaign, name: str, phone: str, via: str = "Offer page") -> Quote:
+def create_campaign_quote(db: Session, c: Campaign, name: str, phone: str, via: str = "Offer page",
+                          social: str | None = None) -> Quote:
     """The client's own accepted quote for a campaign offer (from the offer page or WhatsApp).
     It also lands in Leads & Enquiries as a New lead, until the salon books it."""
     b = c.business
-    customer = find_customer_by_phone(db, b.id, phone)
+    customer, lead = social_bot.join_offer(db, b.id, social, phone, name)  # came from a comment on Facebook / Instagram
+    customer = customer or find_customer_by_phone(db, b.id, phone)
     if not customer:
         customer = Customer(business_id=b.id, name=name, phone=phone)
         db.add(customer)
         db.flush()
-    lead = Lead(business_id=b.id, customer_id=customer.id, source=f"Campaign: {c.title}"[:80],
-                service_interest=" + ".join(i.description for i in c.items)[:300] or c.title[:300],
-                requirement=f"Accepted the offer \"{c.title}\" ({via})."[:2000], status=LeadStatus.new)
-    db.add(lead)
+    note = f"Accepted the offer \"{c.title}\" ({via})."
+    if lead:  # their lead from the comment: now with the offer accepted
+        lead.customer_id = customer.id
+        lead.requirement = ((lead.requirement or "") + "\n" + note).strip()[-2000:]
+        lead.service_interest = " + ".join(i.description for i in c.items)[:300] or c.title[:300]
+        lead.status = LeadStatus.new
+    else:
+        lead = Lead(business_id=b.id, customer_id=customer.id, source=f"Campaign: {c.title}"[:80],
+                    service_interest=" + ".join(i.description for i in c.items)[:300] or c.title[:300],
+                    requirement=note[:2000], status=LeadStatus.new)
+        db.add(lead)
     biz = db.scalar(select(Business).where(Business.id == b.id).with_for_update())
     qt = new_token(10)
     while db.scalar(select(Quote.id).where(Quote.token == qt)):
@@ -645,7 +655,10 @@ def accept_campaign(token: str, body: s.CampaignAcceptIn, db: Session = Depends(
     c = _campaign(db, token)
     if not c.active or campaign_expired(c):
         raise HTTPException(409, "This offer has ended. Message the salon for current prices.")
-    q = create_campaign_quote(db, c, body.name, body.phone)
+    via = "Offer page"
+    if body.p:
+        via = "Offer page, from " + ("Instagram" if "instagram" in str(db.scalar(select(SocialPerson.provider).where(SocialPerson.token == body.p))) else "Facebook")
+    q = create_campaign_quote(db, c, body.name, body.phone, via=via, social=body.p)
     slot_taken = False
     if body.day and body.time:
         db.flush()

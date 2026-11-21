@@ -66,6 +66,7 @@ class BusinessOut(ORM):
     campaigns_enabled: bool = True  # the Campaigns add-on
     logo_url: str | None = None  # /api/public/logo/<id>?v=… when the salon uploaded one
     wa_auto_reply: str | None = None
+    social_auto_reply: bool = True  # private reply with the offer link to Facebook / Instagram comments
     open_time: str = "10:00"
     close_time: str = "22:00"
     closed_days: str = ""
@@ -86,6 +87,7 @@ class BusinessUpdate(BaseModel):
     close_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$|^24:00$")
     closed_days: str | None = Field(default=None, pattern=r"^([0-6](,[0-6])*)?$")
     wa_auto_reply: str | None = Field(default=None, max_length=1000)  # empty: "Thanks for contacting <salon>…"
+    social_auto_reply: bool | None = None
 
 
 class ForgotPasswordIn(BaseModel):
@@ -314,6 +316,8 @@ class LeadOut(ORM):
     last_message: str | None = None
     last_message_at: datetime | None = None
     unread: int = 0
+    channel: str | None = None  # where the last message came from: whatsapp | facebook | instagram
+    social: str | None = None  # their Facebook name or Instagram @username, when they came from there
 
 
 # ---------- QR ----------
@@ -947,6 +951,17 @@ class ChatMessageOut(BaseModel):
     kind: str | None = None  # out: chat | auto_reply | bot | campaign | quote | booking_confirmed
     status: str | None = None  # out: sent | delivered | read | failed | manual
     error: str | None = None
+    channel: str = "whatsapp"  # whatsapp | facebook | instagram
+    note: str | None = None  # e.g. "Comment on your campaign post", "Liked your campaign"
+
+
+class ChatChannel(BaseModel):
+    channel: str  # whatsapp | facebook | instagram
+    label: str  # "WhatsApp", "Instagram @sara.k"
+    can_reply: bool
+    how: str | None = None  # facebook / instagram: dm (they messaged) | comment (one private reply to their comment)
+    until: datetime | None = None
+    hint: str | None = None  # why they can't be messaged now
 
 
 class ChatOut(BaseModel):
@@ -957,10 +972,13 @@ class ChatOut(BaseModel):
     can_reply: bool  # the client wrote in the last 24 hours (WhatsApp only allows free replies then)
     connected: bool  # the WhatsApp Business API is set up
     window_ends_at: datetime | None = None
+    channels: list[ChatChannel] = []  # every way to reply; the first is the one they used last
+    channel: str = "whatsapp"
 
 
 class ChatIn(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
+    channel: str = Field(default="whatsapp", pattern="^(whatsapp|facebook|instagram)$")
 
 
 class BookedOut(AppointmentOut):
@@ -1198,6 +1216,8 @@ class CampaignOut(BaseModel):
     booked: int
     created_at: datetime
     share_text: str
+    comments: int = 0  # on its Facebook / Instagram posts
+    reactions: int = 0  # Facebook likes and reactions
     whatsapp_accept_url: str | None = None
     image_version: str = ""
     post_caption: str = ""
@@ -1235,6 +1255,7 @@ class PublicCampaign(BaseModel):
 class CampaignAcceptIn(AcceptIn):
     name: str = Field(min_length=1, max_length=160)
     phone: str = Field(min_length=6, max_length=40)
+    p: str | None = Field(default=None, max_length=16)  # from a private reply to a Facebook / Instagram comment
 
     @field_validator("name", "phone")
     @classmethod

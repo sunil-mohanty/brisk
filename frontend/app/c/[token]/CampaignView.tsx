@@ -46,7 +46,10 @@ export function CampaignView() {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.post<{ quote_token: string }>(`/public/c/${token}/accept`, { name: f.name.trim(), phone: f.phone.trim() });
+      const r = await api.post<{ quote_token: string }>(`/public/c/${token}/accept`, {
+        name: f.name.trim(), phone: f.phone.trim(),
+        p: new URLSearchParams(window.location.search).get("p") || undefined, // came from a reply to their Facebook / Instagram comment
+      });
       try { sessionStorage.setItem(key, r.quote_token); } catch { /* fine */ }
       setQt(r.quote_token);
       setQ(await api.get<PublicQuote>(`/public/q/${r.quote_token}?preview=1`));

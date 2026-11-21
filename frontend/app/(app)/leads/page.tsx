@@ -80,7 +80,7 @@ export default function LeadsPage() {
             <tbody>
               {rows.map((l) => (
                 <tr key={l.id} className={(toBook(l) && l.offer) || l.unread ? "lead-hot" : undefined}>
-                  <td className="c-main"><b>{l.customer.name}</b><div className="sub mono">{l.customer.phone}</div></td>
+                  <td className="c-main"><b>{l.customer.name}</b><div className="sub mono">{l.customer.phone || (l.social && <span className={`soc-tag ${l.channel ?? ""}`}>{l.channel === "instagram" ? (l.social === l.customer.name ? "Instagram" : `Instagram ${l.social}`) : "Facebook"}</span>)}</div></td>
                   <td className="c-stat c-first" data-label="via">
                     {l.source}
                     {l.accepted_via && <div><span className="pill p-accepted lead-acc">✓ Accepted{l.accepted_via !== "Quote" ? ` on ${l.accepted_via === "WhatsApp" ? "WhatsApp" : "the offer page"}` : ""}</span></div>}
@@ -99,7 +99,8 @@ export default function LeadsPage() {
                       </>
                     )}
                     {l.last_message && (
-                      <button type="button" className={`lead-msg${l.unread ? " unread" : ""}`} onClick={() => setChatting(l)}>
+                      <button type="button" className={`lead-msg ch-${l.channel ?? "whatsapp"}${l.unread ? " unread" : ""}`} onClick={() => setChatting(l)}
+                        title={l.channel && l.channel !== "whatsapp" ? `On ${l.channel === "instagram" ? "Instagram" : "Facebook"}` : "On WhatsApp"}>
                         <span aria-hidden="true">💬</span><span className="lead-msg-t">{l.last_message}</span>
                         {l.unread > 0 && <em>{l.unread} new</em>}
                       </button>
@@ -118,14 +119,10 @@ export default function LeadsPage() {
                   <td className="sub c-stat">{fmtDateTime(l.created_at)}</td>
                   <td className="c-acts">
                     <div className="acts">
-                      {l.customer.phone && (
-                        <>
-                          {l.last_message
-                            ? <button type="button" className="btn sm wa" onClick={() => setChatting(l)}>Chat{l.unread ? ` (${l.unread})` : ""}</button>
-                            : <a className="btn sm wa" href={waLink(l.customer.phone, hello(l))} target="_blank" rel="noreferrer" onClick={() => talked(l)}>WhatsApp</a>}
-                          <a className="btn sm" href={`tel:${l.customer.phone.replace(/\s+/g, "")}`} onClick={() => talked(l)}>Call</a>
-                        </>
-                      )}
+                      {l.last_message
+                        ? <button type="button" className="btn sm wa" onClick={() => setChatting(l)}>Chat{l.unread ? ` (${l.unread})` : ""}</button>
+                        : l.customer.phone && <a className="btn sm wa" href={waLink(l.customer.phone, hello(l))} target="_blank" rel="noreferrer" onClick={() => talked(l)}>WhatsApp</a>}
+                      {l.customer.phone && <a className="btn sm" href={`tel:${l.customer.phone.replace(/\s+/g, "")}`} onClick={() => talked(l)}>Call</a>}
                       {!l.quote_id && <Link className="btn sm" href={`/quotes/new?lead=${l.id}`}>Quote</Link>}
                       {l.appointment_id
                         ? <Link className="btn sm" href={`/appointments?id=${l.appointment_id}`}>See booking</Link>

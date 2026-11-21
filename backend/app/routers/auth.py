@@ -257,6 +257,8 @@ def update_business(body: s.BusinessUpdate, user: User = Depends(require_manager
         changes["business_type"] = s.clean_business_type(changes["business_type"])
     if changes.get("checklist_hidden") is None:
         changes.pop("checklist_hidden", None)
+    if changes.get("social_auto_reply", False) is None:
+        changes.pop("social_auto_reply")
     for k, v in changes.items():
         setattr(biz, k, v)
     if set(changes) - {"checklist_hidden"}:

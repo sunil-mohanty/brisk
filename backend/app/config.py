@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     # Facebook Login for Business: the Configuration ID (App Dashboard → Facebook Login for Business → Configurations).
     # New Meta apps need it; when set, the permissions come from the configuration instead of a scope list.
     meta_login_config_id: str | None = None
+    # Webhook for comments, reactions and messages on the salons' Pages and Instagram (falls back to WHATSAPP_VERIFY_TOKEN)
+    meta_webhook_verify_token: str | None = None
     # Posting campaign videos to each salon's YouTube channel (one Google Cloud project for the platform).
     google_client_id: str | None = None
     google_client_secret: str | None = None

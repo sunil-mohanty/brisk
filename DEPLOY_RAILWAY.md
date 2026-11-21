@@ -99,7 +99,7 @@ Push the new code. The `api` service runs database migrations on start, so the l
 and the link-page switch. Existing data is kept, and quotes already accepted are marked
 "booked" (if they have an appointment) or "awaiting booking".
 
-Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) `0009_staff` (staff profiles, logins and roles, attendance, leave and commission) and `0010_campaigns_addon` (Campaigns as an add-on you switch on per business in Admin; existing businesses keep it on), `0011_offer_templates` (campaign headlines, and the templates owners save), `0012_campaign_draft` (campaigns saved as a draft while you preview them), `0013_wa_campaigns` (campaigns sent from the WhatsApp Business number, and "Stop offers") and `0014_wa_chat_logo` (WhatsApp chats in Leads, the automatic reply, and the salon logo). New sign-ups get Campaigns switched on unless you set `CAMPAIGNS_ON_SIGNUP=false` on the api service. This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
+Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) `0009_staff` (staff profiles, logins and roles, attendance, leave and commission) and `0010_campaigns_addon` (Campaigns as an add-on you switch on per business in Admin; existing businesses keep it on), `0011_offer_templates` (campaign headlines, and the templates owners save), `0012_campaign_draft` (campaigns saved as a draft while you preview them), `0013_wa_campaigns` (campaigns sent from the WhatsApp Business number, and "Stop offers") `0014_wa_chat_logo` (WhatsApp chats in Leads, the automatic reply, and the salon logo) and `0015_social_leads` (Facebook and Instagram comments, likes and messages become leads). New sign-ups get Campaigns switched on unless you set `CAMPAIGNS_ON_SIGNUP=false` on the api service. This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
 `pillow`, `cryptography` and `imageio-ffmpeg` to the api, installed automatically on deploy.
 The WhatsApp part (`0003_whatsapp`) adds (a log of incoming WhatsApp messages and
 delivery ticks). Nothing changes until you add the WhatsApp variables (see below).
@@ -165,6 +165,41 @@ Requirements for each salon:
 - a **Facebook Page** for the salon, and they must be an admin of it;
 - an **Instagram Business or Creator account linked to that Page** (Instagram app → Settings → Account type, then
   Page settings → Linked accounts → Instagram). Personal Instagram accounts can't be posted to by apps.
+
+### A2. Comments, likes and messages become leads (webhooks)
+
+Once posting works, Brisk can also receive what people do on those posts:
+
+| On the campaign post | What Brisk does |
+|---|---|
+| Comment (Facebook or Instagram) | A lead in Leads & Enquiries, and (switch in Settings → Social media) a **private message** to the person with the offer link. When they accept with their mobile, the lead joins up with that number. |
+| Like / reaction (Facebook) | Counted on the campaign and kept as a lead. Facebook doesn't let anyone message people who only liked. Instagram doesn't share likes at all. |
+| Message to the Page or Instagram | In the lead's chat, with the automatic reply; the owner answers from Brisk for 24 hours after each of their messages. |
+
+Setup, in the same Meta app:
+
+1. **Dashboard → Customize** the use cases and **Add**: Page use case `pages_manage_metadata`, `pages_read_user_content`,
+   `pages_messaging`; Instagram use case `instagram_manage_comments`, `instagram_manage_messages`.
+   Add the same five to the **login configuration** from step A5 (Facebook Login for Business → Configurations → edit).
+2. Railway → **api** → Variables: `META_WEBHOOK_VERIFY_TOKEN=<any long random text>` (if you leave it out, the WhatsApp
+   `WHATSAPP_VERIFY_TOKEN` is used). Redeploy.
+3. **Webhooks** (left menu, or the use case → Webhooks): choose **Page** in the dropdown → **Subscribe to this object**:
+   Callback URL `https://brisk-web-production.up.railway.app/api/social/webhook`, Verify token = the one from step 2
+   → **Verify and save**. Then **Subscribe** the fields **feed** and **messages**.
+   Choose **Instagram** in the dropdown → same callback URL and token → subscribe **comments** and **messages**.
+4. **Instagram messages:** in the Instagram app → Settings → Messages and story replies → Message controls →
+   **Allow access to messages** (Connected tools) on.
+5. In Brisk: **Settings → Social media → Reconnect** and allow everything on Facebook's screen. This subscribes the Page
+   to the webhook. Then post a campaign and comment on it from another account: the lead appears within seconds.
+6. While the app is in Development mode this works for Pages of people with a role on the app (you). For other salons,
+   add the five permissions to the **App Review** submission (record: a comment arriving in Leads and the private reply).
+
+| What you see | Why / fix |
+|---|---|
+| Nothing arrives in Leads | Webhook fields not subscribed (step 3), or the salon connected before this update: press **Reconnect**. Logs show `page webhook: N event(s)`. |
+| "Verify token does not match" when saving | `META_WEBHOOK_VERIFY_TOKEN` on the api isn't the same text, or the api wasn't redeployed. |
+| Comment arrives but no private reply | `pages_messaging` (Facebook) / `instagram_manage_messages` (Instagram) not granted: Reconnect. The reason shows in the chat. |
+| Comment shows without a name (Facebook) | `pages_read_user_content` is missing or not approved yet. |
 
 ### B. Google project (YouTube)
 

@@ -8,7 +8,7 @@ from .config import get_settings
 from .security import manager_writes, require_campaigns, require_manager, require_perm
 from .db import Base, engine
 from .timing import TimingMiddleware
-from .routers import admin, appointments, auth, campaigns, catalog, customers, dashboard, inventory, leads, linkpage, media, messages, public, qr, quotes, services, social, staff_routes, team, whatsapp_hook
+from .routers import admin, appointments, auth, campaigns, catalog, customers, dashboard, inventory, leads, linkpage, media, messages, public, qr, quotes, services, social, social_hook, staff_routes, team, whatsapp_hook
 
 
 # Our own log lines (WhatsApp webhook calls, sends, failures) show in the Railway logs; libraries stay quiet.
@@ -47,7 +47,7 @@ _GUARDS = {
     media: [Depends(require_manager)],  # social.py guards its own routes (its OAuth callback has no login)
     catalog: [Depends(manager_writes)], team: [Depends(manager_writes)],
 }
-for r in (auth, customers, leads, qr, quotes, services, catalog, dashboard, public, admin, appointments, team, linkpage, campaigns, inventory, messages, whatsapp_hook, social, media, staff_routes):
+for r in (auth, customers, leads, qr, quotes, services, catalog, dashboard, public, admin, appointments, team, linkpage, campaigns, inventory, messages, whatsapp_hook, social_hook, social, media, staff_routes):
     app.include_router(r.router, prefix="/api", dependencies=_GUARDS.get(r, []))
 
 

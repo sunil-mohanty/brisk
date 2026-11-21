@@ -75,11 +75,14 @@ function CampaignDetail() {
         </>}
       />
       {c.draft && <div className="banner warn" style={{ marginBottom: 14 }}>This campaign is a draft: clients can&apos;t see it yet. Check it, then press <b>Publish</b>.</div>}
-      <div className="kpis">
+      <div className={`kpis${c.comments || c.reactions ? " five" : ""}`}>
         <div className="kpi"><span>Sent on WhatsApp</span><strong>{c.sent_whatsapp ?? 0}</strong><em>clients you messaged</em></div>
         <div className="kpi"><span>Page views</span><strong>{c.views}</strong><em>people who opened the offer</em></div>
         <div className="kpi"><span>Accepted</span><strong>{c.accepted}</strong><em>{c.views ? `${Math.round((c.accepted / c.views) * 100)}% of views` : "no views yet"}</em></div>
         <div className="kpi"><span>Booked a time</span><strong>{c.booked}</strong><em>{c.accepted - c.booked} still to book in</em></div>
+        {(c.comments || c.reactions) ? (
+          <div className="kpi"><span>Comments &amp; likes</span><strong>{c.comments ?? 0} · {c.reactions ?? 0}</strong><em><Link href="/leads">in Leads &amp; Enquiries</Link></em></div>
+        ) : null}
       </div>
       <section className="launch" id="send">
         <div className="launch-h">
