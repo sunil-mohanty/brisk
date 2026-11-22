@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MenuScan } from "@/components/MenuScan";
+import { PackageBuilder } from "@/components/PackageBuilder";
 import { useSession } from "@/components/session";
 import { toast } from "@/components/ui";
 import { api } from "@/lib/api";
+import { money } from "@/lib/format";
 import type { CatalogItem } from "@/lib/types";
 import { duration, vocab } from "@/lib/vocab";
 import { categoriesFor } from "@/lib/vocab";
@@ -17,6 +20,8 @@ export function ServiceMenu() {
   const [items, setItems] = useState<CatalogItem[] | null>(null);
   const [f, setF] = useState({ name: "", price: "", minutes: "60", category: "" });
   const nameRef = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [pkg, setPkg] = useState<CatalogItem | "new" | null>(null);
   useEffect(() => { api.get<CatalogItem[]>("/catalog").then(setItems).catch(() => setItems([])); }, []);
 
   const have = new Set((items ?? []).map((i) => i.name.trim().toLowerCase()));
@@ -50,8 +55,23 @@ export function ServiceMenu() {
 
   return (
     <section className="panel" id="menu">
-      <h2>{W.vertical === "real_estate" ? "Listings" : "Service menu"} <span className="muted small">{items?.length ?? 0} {W.services}</span></h2>
-      <p className="muted small" style={{ marginTop: -6 }}>Tap these when booking or quoting. Clients see them on your link page.</p>
+      <div className="menu-top">
+        <div>
+          <h2>{W.vertical === "real_estate" ? "Listings" : "Service menu"} <span className="muted small">{items?.length ?? 0} {W.services}</span></h2>
+          <p className="muted small" style={{ marginTop: -6 }}>Tap these when booking or quoting. Clients see them on your link page.</p>
+        </div>
+        <div className="menu-actions">
+          <button type="button" className="btn" onClick={() => setScanning(true)}><span aria-hidden="true">📷</span> Scan your menu</button>
+          {W.vertical !== "real_estate" && <button type="button" className="btn" onClick={() => setPkg("new")} disabled={!items?.length}><span aria-hidden="true">🎁</span> New package</button>}
+        </div>
+      </div>
+      {items && items.length === 0 && (
+        <button type="button" className="scan-cta" onClick={() => setScanning(true)}>
+          <span aria-hidden="true">📷</span>
+          <span><b>Already have a printed menu or price list?</b><small>Take a photo and we&apos;ll fill in your services, prices and packages for you to check.</small></span>
+          <em>Scan it</em>
+        </button>
+      )}
       {ideas.length > 0 && (
         <div className="pricechips" style={{ marginBottom: 12 }}>
           <span className="small muted">Popular for a {v.label.toLowerCase()}. Tap to add, then set your own price:</span>
@@ -74,7 +94,7 @@ export function ServiceMenu() {
         <div className="menu-group" key={cat}>
           <h3>{cat}</h3>
           {list.map((it) => (
-            <div className="menu-row" key={it.id}>
+            <div className={`menu-row${it.includes?.length ? " pkg" : ""}`} key={`${it.id}:${it.name}:${it.unit_price}:${it.duration_min}`}>
               <input defaultValue={it.name} aria-label="Service name" onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== it.name && save(it, { name: e.target.value.trim() })} />
               <input defaultValue={Number(it.unit_price)} type="number" min="0" step="1" inputMode="decimal" aria-label={`Price for ${it.name}`} onBlur={(e) => Number(e.target.value) !== Number(it.unit_price) && save(it, { unit_price: String(Number(e.target.value) || 0) })} />
               <input defaultValue={it.duration_min ?? ""} type="number" min="5" max="720" step="5" aria-label={`Minutes for ${it.name}`} placeholder="min" title={duration(it.duration_min)} onBlur={(e) => (Number(e.target.value) || null) !== it.duration_min && save(it, { duration_min: Number(e.target.value) || null })} />
@@ -83,10 +103,22 @@ export function ServiceMenu() {
                 <label className="check" style={{ display: "inline-flex", fontSize: 13 }}><input type="checkbox" checked={it.on_page} onChange={(e) => save(it, { on_page: e.target.checked })} />on page</label>
               </span>
               <button type="button" className="btn sm" aria-label={`Remove ${it.name}`} onClick={() => remove(it)}>×</button>
+              {!!it.includes?.length && (
+                <div className="menu-pkg">
+                  <span className="menu-pkg-tag">Package</span>
+                  <span>{it.includes.map((p) => (p.qty > 1 ? `${p.qty} × ` : "") + p.name).join(" + ")}</span>
+                  {it.worth && Number(it.worth) > Number(it.unit_price) && (
+                    <span className="menu-pkg-save">worth {money(it.worth, business.currency)} · saves {money(Number(it.worth) - Number(it.unit_price), business.currency)}</span>
+                  )}
+                  <button type="button" className="linkbtn" onClick={() => setPkg(it)}>Edit package</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       ))}
+      <MenuScan open={scanning} onClose={() => setScanning(false)} onAdded={setItems} />
+      <PackageBuilder open={!!pkg} editing={pkg && pkg !== "new" ? pkg : null} menu={items ?? []} onClose={() => setPkg(null)} onSaved={setItems} />
     </section>
   );
 }

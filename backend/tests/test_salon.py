@@ -59,7 +59,7 @@ def test_link_page_editing_and_public_view(client):
     pub = client.get("/api/public/b/LAYLA-BARSHA").json()
     assert pub["theme"] == "rose" and pub["motion"] == "shimmer"
     assert pub["socials"] == {"instagram": "https://instagram.com/layla.beauty", "tiktok": "https://www.tiktok.com/@laylabeauty"}
-    assert pub["menu"][0] == {"name": "Haircut & blow-dry", "price": "120.00", "price_from": False, "duration_min": 60, "category": "Hair"}
+    assert pub["menu"][0] == {"name": "Haircut & blow-dry", "price": "120.00", "price_from": False, "duration_min": 60, "category": "Hair", "includes": []}
     assert pub["team"][0]["initials"] == "MH"
     assert client.get("/api/public/b/no-such-salon").status_code == 404
 

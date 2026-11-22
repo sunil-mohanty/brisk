@@ -102,6 +102,7 @@ export function LinkPageView({ slug, initial, preview = false, demo = false }: {
                     <li key={m.name}>
                       <div className="lk-item-l">
                         <b>{m.name}</b>
+                        {!!m.includes?.length && <small className="lk-incl">{m.includes.join(" + ")}</small>}
                         <span>{[p.show_prices && price(m), duration(m.duration_min)].filter(Boolean).join(" · ")}</span>
                       </div>
                       {p.booking && (

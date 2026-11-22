@@ -134,6 +134,9 @@ class Business(Base):
     wa_home: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Facebook / Instagram: send a private reply with the offer link to everyone who comments on a campaign post
     social_auto_reply: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # Reading a photo of the salon's printed menu with AI: a monthly allowance ("2026-11", 3)
+    menu_scan_month: Mapped[str | None] = mapped_column(String(7))
+    menu_scans: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     @property
     def logo_url(self) -> str | None:
@@ -351,7 +354,13 @@ class CatalogItem(Base):
     price_from: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # show "from AED 80"
     on_page: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")  # listed on the link page
     uses: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # A package: the services it bundles, [{"name": "Classic Facial", "qty": 1}], priced together at unit_price
+    includes: Mapped[list[dict]] = mapped_column(JSON, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    @property
+    def is_package(self) -> bool:
+        return bool(self.includes)
 
 
 class LinkItem(Base):

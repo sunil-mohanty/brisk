@@ -472,11 +472,18 @@ class ServiceOut(ORM):
     created_at: datetime
 
 
+class PackagePart(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
+    qty: int = Field(default=1, ge=1, le=20)
+
+
 class CatalogIn(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     unit_price: Decimal = Field(default=Decimal("0"), ge=0)
     category: str | None = Field(default=None, max_length=60)
     duration_min: int | None = Field(default=None, ge=5, le=720)
+    price_from: bool | None = None
+    includes: list[PackagePart] | None = Field(default=None, max_length=30)  # a package: the services it bundles
 
 
 class CatalogUpdate(BaseModel):
@@ -486,6 +493,7 @@ class CatalogUpdate(BaseModel):
     duration_min: int | None = Field(default=None, ge=5, le=720)
     price_from: bool | None = None
     on_page: bool | None = None
+    includes: list[PackagePart] | None = Field(default=None, max_length=30)  # [] turns a package back into a service
 
 
 class CatalogOut(ORM):
@@ -497,6 +505,31 @@ class CatalogOut(ORM):
     price_from: bool = False
     on_page: bool = True
     uses: int
+    includes: list[PackagePart] = []
+    worth: Decimal | None = None  # a package: what its services cost one by one (from the menu)
+
+
+class ScanItemOut(BaseModel):
+    name: str
+    unit_price: Decimal | None = None
+    price_from: bool = False
+    duration_min: int | None = None
+    category: str | None = None
+    includes: list[PackagePart] = []
+    existing_id: int | None = None  # already on the menu: adding updates it
+    existing_price: Decimal | None = None
+
+
+class ScanOut(BaseModel):
+    items: list[ScanItemOut] = []
+    currency: str | None = None  # as printed on the menu
+    left: int | None = None  # scans left this month; None: scanning isn't set up
+
+
+class ScanStatus(BaseModel):
+    enabled: bool
+    left: int | None = None
+    per_month: int = 0
 
 
 class ReminderOut(BaseModel):
@@ -1095,6 +1128,7 @@ class PublicMenuItem(BaseModel):
     price_from: bool
     duration_min: int | None
     category: str | None
+    includes: list[str] = []  # a package: "2 × Manicure", "Classic Facial"
 
 
 class PublicStylist(BaseModel):

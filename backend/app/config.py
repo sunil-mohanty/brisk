@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     ai_image_key: str | None = None
     ai_images_per_month: int = 10  # per business
     ai_image_url: str | None = None  # override the provider's address (testing)
+    # Reading the salon's existing printed menu from photos / a PDF (see menu_scan.py). Off without a key.
+    menu_scan_provider: str = "anthropic"  # anthropic (Claude) | openai
+    menu_scan_key: str | None = None  # falls back to AI_IMAGE_KEY when that provider is openai
+    menu_scan_model: str | None = None  # default claude-sonnet-5-5 / gpt-4.1-mini
+    menu_scans_per_month: int = 20  # per business
+    menu_scan_url: str | None = None  # override the provider's address (testing)
 
     @field_validator("database_url")
     @classmethod

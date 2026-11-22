@@ -346,7 +346,8 @@ def _menu(db: Session, business_id: int) -> list[s.PublicMenuItem]:
         first.setdefault(i.category, n)
     items = sorted(items, key=lambda i: (i.category is None, first[i.category]))
     return [
-        s.PublicMenuItem(name=i.name, price=i.unit_price, price_from=i.price_from, duration_min=i.duration_min, category=i.category)
+        s.PublicMenuItem(name=i.name, price=i.unit_price, price_from=i.price_from, duration_min=i.duration_min, category=i.category,
+                         includes=[(f"{p['qty']} × " if p.get("qty", 1) > 1 else "") + p["name"] for p in (i.includes or [])])
         for i in items
     ]
 

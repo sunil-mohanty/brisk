@@ -38,7 +38,16 @@ export interface CatalogItem {
   price_from: boolean;
   on_page: boolean;
   uses: number;
+  includes?: PackagePart[]; // a package: the services it bundles
+  worth?: string | null; // what those services cost one by one
 }
+export interface PackagePart { name: string; qty: number }
+export interface ScanItem {
+  name: string; unit_price: string | null; price_from: boolean; duration_min: number | null; category: string | null;
+  includes: PackagePart[]; existing_id: number | null; existing_price: string | null;
+}
+export interface ScanOut { items: ScanItem[]; currency: string | null; left: number | null }
+export interface ScanStatus { enabled: boolean; left: number | null; per_month: number }
 
 export type Role = "owner" | "manager" | "staff";
 export interface User { id: number; name: string; email: string; is_admin?: boolean; seen_tips?: string[]; role?: Role; permissions?: string[]; stylist_id?: number | null }
@@ -392,7 +401,7 @@ export interface LinkPage {
   bookings_30d: number;
 }
 
-export interface PublicMenuItem { name: string; price: string; price_from: boolean; duration_min: number | null; category: string | null }
+export interface PublicMenuItem { name: string; price: string; price_from: boolean; duration_min: number | null; category: string | null; includes?: string[] }
 export interface PublicStylist { id: number; name: string; role: string | null; color: string; initials: string }
 
 export interface PublicLinkPage {

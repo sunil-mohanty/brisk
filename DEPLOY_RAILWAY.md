@@ -99,7 +99,7 @@ Push the new code. The `api` service runs database migrations on start, so the l
 and the link-page switch. Existing data is kept, and quotes already accepted are marked
 "booked" (if they have an appointment) or "awaiting booking".
 
-Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) `0009_staff` (staff profiles, logins and roles, attendance, leave and commission) and `0010_campaigns_addon` (Campaigns as an add-on you switch on per business in Admin; existing businesses keep it on), `0011_offer_templates` (campaign headlines, and the templates owners save), `0012_campaign_draft` (campaigns saved as a draft while you preview them), `0013_wa_campaigns` (campaigns sent from the WhatsApp Business number, and "Stop offers") `0014_wa_chat_logo` (WhatsApp chats in Leads, the automatic reply, and the salon logo) and `0015_social_leads` (Facebook and Instagram comments, likes and messages become leads). New sign-ups get Campaigns switched on unless you set `CAMPAIGNS_ON_SIGNUP=false` on the api service. This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
+Later updates add `0005_design` (banner style and AI pictures), `0006_quote_pics` (pictures and brochures on quotes) and `0007_client_tags` (client tags, and campaigns sent to clients on WhatsApp) `0008_categories` (your own client categories, up to 4) `0009_staff` (staff profiles, logins and roles, attendance, leave and commission) and `0010_campaigns_addon` (Campaigns as an add-on you switch on per business in Admin; existing businesses keep it on), `0011_offer_templates` (campaign headlines, and the templates owners save), `0012_campaign_draft` (campaigns saved as a draft while you preview them), `0013_wa_campaigns` (campaigns sent from the WhatsApp Business number, and "Stop offers") `0014_wa_chat_logo` (WhatsApp chats in Leads, the automatic reply, and the salon logo) `0015_social_leads` (Facebook and Instagram comments, likes and messages become leads) and `0016_packages_menu_scan` (service packages, and reading a printed menu from photos). New sign-ups get Campaigns switched on unless you set `CAMPAIGNS_ON_SIGNUP=false` on the api service. This update adds `0003_whatsapp` and `0004_social` (social accounts and campaign posts). It also adds
 `pillow`, `cryptography` and `imageio-ffmpeg` to the api, installed automatically on deploy.
 The WhatsApp part (`0003_whatsapp`) adds (a log of incoming WhatsApp messages and
 delivery ticks). Nothing changes until you add the WhatsApp variables (see below).
@@ -267,6 +267,25 @@ AI_IMAGE_KEY=<key from fal.ai → Dashboard → Keys, or platform.openai.com>
 AI_IMAGES_PER_MONTH=10           # per business
 ```
 fal.ai: sign up at fal.ai, add a few dollars of credit, create a key. Prices change; check the provider's page.
+
+## Scan your menu (optional)
+
+**Services → Scan your menu** reads a salon's existing printed menu or price list (up to 6 photos, or a PDF) and lists
+the services, prices, times, categories and **packages** it found. The owner checks them, unticks what they don't want
+and adds the rest. Nothing is saved until they press Add. Without a key the button says scanning isn't switched on.
+
+| Provider | Model (default) | Reads | About per scan |
+|---|---|---|---|
+| Anthropic (default) | `claude-sonnet-5-5` | photos and PDFs | USD 0.01–0.05 |
+| OpenAI | `gpt-4.1-mini` | photos only | USD 0.005–0.02 |
+
+Set on the **api** service:
+```
+MENU_SCAN_PROVIDER=anthropic     # or openai
+MENU_SCAN_KEY=<key from console.anthropic.com → API keys, or platform.openai.com>
+MENU_SCANS_PER_MONTH=20          # per business
+# MENU_SCAN_MODEL=claude-haiku-5-5   # optional: cheaper, a little less accurate on busy menus
+```
 
 ## WhatsApp Business API (optional, later phase)
 
