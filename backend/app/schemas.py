@@ -318,6 +318,7 @@ class LeadOut(ORM):
     unread: int = 0
     channel: str | None = None  # where the last message came from: whatsapp | facebook | instagram
     social: str | None = None  # their Facebook name or Instagram @username, when they came from there
+    channels: list[str] = []  # where they reached the salon: whatsapp, facebook, instagram (empty: link page, QR, phone…)
 
 
 # ---------- QR ----------

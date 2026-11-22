@@ -235,6 +235,12 @@ def _with_bookings(db: Session, business_id: int, leads) -> list[s.LeadOut]:
         msgs += social.get(l.customer_id, [])
         if social.get(l.customer_id):
             o.social = next((h for *_, h in reversed(social[l.customer_id]) if h), None)
+        src = (l.source or "").lower()
+        ch = {m[2] for m in msgs}
+        if "(whatsapp)" in (l.requirement or "").lower() or "whatsapp" in src:
+            ch.add("whatsapp")
+        ch |= {p for p in ("facebook", "instagram") if src.startswith(p)}
+        o.channels = [c for c in ("whatsapp", "facebook", "instagram") if c in ch]
         if msgs and newest.get(l.customer_id) == l.id:
             msgs.sort(key=lambda m: m[0])
             last = msgs[-1]

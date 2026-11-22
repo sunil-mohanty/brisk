@@ -99,6 +99,7 @@ export interface Lead {
   unread: number;
   channel?: "whatsapp" | "facebook" | "instagram" | null;
   social?: string | null;
+  channels?: ("whatsapp" | "facebook" | "instagram")[];
 }
 
 export type ChatChannelId = "whatsapp" | "facebook" | "instagram";

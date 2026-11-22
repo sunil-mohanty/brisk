@@ -118,7 +118,8 @@ def _lead(db: Session, b: Business, p: SocialPerson, source: str, note: str, c: 
     lead = db.scalar(select(Lead).where(Lead.business_id == b.id, Lead.customer_id == p.customer_id, Lead.created_at >= since)
                      .order_by(Lead.id.desc()))
     if lead:
-        lead.requirement = ((lead.requirement or "") + "\n" + note).strip()[-2000:]
+        if note not in (lead.requirement or ""):  # "Messaged on Facebook." once, not every time
+            lead.requirement = ((lead.requirement or "") + "\n" + note).strip()[-2000:]
         lead.updated_at = utcnow()
         if lead.status in (LeadStatus.lost,):
             lead.status = LeadStatus.new

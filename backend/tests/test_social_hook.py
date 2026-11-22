@@ -102,6 +102,7 @@ def test_facebook_comment_becomes_lead_with_private_reply_and_accept_joins_up(cl
     lead = leads[0]
     assert lead["customer"]["name"] == "Sara Khan" and lead["source"] == "Facebook comment: Bridal glow"
     assert lead["channel"] == "facebook" and lead["last_message"] == "How much for two people?" and lead["unread"] == 1
+    assert lead["channels"] == ["facebook"]
     assert client.get("/api/leads/unread", headers=h).json() == {"count": 1}
 
     # The automatic private reply, through the Page, to the comment, with a personal offer link

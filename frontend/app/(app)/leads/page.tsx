@@ -18,12 +18,19 @@ const STATUSES: LeadStatus[] = ["new", "contacted", "quoted", "won", "lost"];
 const LABEL: Record<LeadStatus, string> = { new: "New", contacted: "Replied", quoted: "Quoted", won: "Booked", lost: "Not booked" };
 
 type Filter = LeadStatus | "all" | "tobook";
+type Source = "any" | "whatsapp" | "facebook" | "instagram" | "other";
+const SOURCES: { id: Source; label: string }[] = [
+  { id: "any", label: "All sources" }, { id: "whatsapp", label: "WhatsApp" }, { id: "facebook", label: "Facebook" },
+  { id: "instagram", label: "Instagram" }, { id: "other", label: "Link, QR & other" },
+];
+const fromSource = (l: Lead, s: Source) => s === "any" || (s === "other" ? !l.channels?.length : !!l.channels?.includes(s));
 const toBook = (l: Lead) => !l.appointment_id && (l.status === "new" || l.status === "contacted" || l.status === "quoted");
 
 export default function LeadsPage() {
   const { business } = useSession();
   const [leads, setLeads] = useState<Lead[] | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [source, setSource] = useState<Source>("any");
   const [adding, setAdding] = useState(false);
   const [chatting, setChatting] = useState<Lead | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +55,7 @@ export default function LeadsPage() {
   const talked = (l: Lead) => { if (l.status === "new") setStatus(l, "contacted", true); };
 
   const all = leads ?? [];
-  const match = (l: Lead, f: Filter) => f === "all" || (f === "tobook" ? toBook(l) : l.status === f);
+  const match = (l: Lead, f: Filter) => fromSource(l, source) && (f === "all" || (f === "tobook" ? toBook(l) : l.status === f));
   const rows = all.filter((l) => match(l, filter));
   const first = (l: Lead) => l.customer.name.split(" ")[0];
   const hello = (l: Lead) => l.offer
@@ -73,6 +80,17 @@ export default function LeadsPage() {
         ))}
       </div>
       </Tip>
+      <div className="filters src-filters" role="group" aria-label="Where they came from">
+        {SOURCES.map((s) => {
+          const n = all.filter((l) => fromSource(l, s.id)).length;
+          if (s.id !== "any" && !n) return null;
+          return (
+            <button key={s.id} className={`chip src-chip src-${s.id}`} aria-pressed={source === s.id} onClick={() => setSource(s.id)}>
+              {s.id !== "any" && s.id !== "other" && <i aria-hidden="true" />}{s.label} <span className="mono">{n}</span>
+            </button>
+          );
+        })}
+      </div>
       {!leads ? <Loading /> : (
         <div className="tablewrap">
           <table className="ctable">
